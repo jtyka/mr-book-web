@@ -212,9 +212,17 @@ function pagedParams(
 // ----------------------------------------------------------------------------
 
 export const booksApi = {
-  list: (page = 0, size = 20, sort = "title", dir: "asc" | "desc" = "asc") =>
+  list: (
+    page = 0,
+    size = 20,
+    sort = "title",
+    dir: "asc" | "desc" = "asc",
+    categoryId?: number | null
+  ) =>
     request<PagedResponse<BookDto>>(
-      `/api/books?${pagedParams(page, size, sort, dir)}`
+      `/api/books?${pagedParams(page, size, sort, dir)}${
+        categoryId != null ? `&categoryId=${categoryId}` : ""
+      }`
     ),
 
   get: (id: number) => request<BookDto>(`/api/books/${id}`),

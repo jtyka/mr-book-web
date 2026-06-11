@@ -4,11 +4,18 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RowSelectionState } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { booksApi, BookDto, BookCreateDto } from "@/lib/api";
+import { booksApi, categoriesApi, BookDto, BookCreateDto } from "@/lib/api";
 import { DataTable } from "@/components/data-table";
 import { createBookColumns } from "./columns";
 import { BookForm } from "./book-form";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,10 +38,16 @@ export default function BooksPage() {
   const [editBook, setEditBook] = useState<BookDto | undefined>();
   const [deleteBook, setDeleteBook] = useState<BookDto | undefined>();
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["books", page, pageSize],
-    queryFn: () => booksApi.list(page, pageSize),
+    queryKey: ["books", page, pageSize, categoryFilter],
+    queryFn: () => booksApi.list(page, pageSize, "title", "asc", categoryFilter),
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ["categories-flat"],
+    queryFn: () => categoriesApi.list(),
   });
 
   const books = data?.content ?? [];
@@ -127,6 +140,50 @@ export default function BooksPage() {
             Neues Buch
           </Button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Select
+          value={categoryFilter?.toString() ?? "all"}
+          onValueChange={(v) => {
+            setCategoryFilter(v === "all" ? null : Number(v));
+            setPage(0);
+            setRowSelection({});
+          }}
+        >
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Alle Kategorien">
+              {categoryFilter != null
+                ? (() => {
+                    const c = (categories ?? []).find((c) => c.id === categoryFilter);
+                    if (!c) return undefined;
+                    return c.parentName ? `${c.parentName} › ${c.name}` : c.name;
+                  })()
+                : "Alle Kategorien"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">– Alle Kategorien –</SelectItem>
+            {(categories ?? []).map((c) => (
+              <SelectItem key={c.id} value={String(c.id)}>
+                {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {categoryFilter != null && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setCategoryFilter(null);
+              setPage(0);
+              setRowSelection({});
+            }}
+          >
+            Filter zurücksetzen
+          </Button>
+        )}
       </div>
 
       <DataTable
