@@ -62,6 +62,17 @@ export default function BooksPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const markReadMutation = useMutation({
+    mutationFn: (book: BookDto) =>
+      booksApi.addReadingRecord(book.id, { startedAt: null, readAt: null }),
+    onSuccess: (_, book) => {
+      toast.success(`„${book.title}" als gelesen markiert`);
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["reading-records", book.id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids: number[]) => booksApi.bulkDelete(ids),
     onSuccess: (count) => {
@@ -81,6 +92,7 @@ export default function BooksPage() {
   const columns = createBookColumns({
     onEdit: (book) => { setEditBook(book); setFormOpen(true); },
     onDelete: (book) => setDeleteBook(book),
+    onMarkRead: (book) => markReadMutation.mutate(book),
   });
 
   async function handleFormSubmit(dto: BookCreateDto) {

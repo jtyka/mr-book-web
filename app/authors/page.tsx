@@ -88,6 +88,18 @@ export default function AuthorsPage() {
     { accessorKey: "nationality", header: "Nationalität", cell: ({ row }) => row.original.nationality ?? "–" },
     { accessorKey: "birthDate", header: "Geburtsdatum", cell: ({ row }) => row.original.birthDate ? row.original.birthDate.slice(0, 10) : "–" },
     {
+      accessorKey: "website",
+      header: "Webseite",
+      cell: ({ row }) =>
+        row.original.website ? (
+          <a href={row.original.website} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            {row.original.website}
+          </a>
+        ) : (
+          "–"
+        ),
+    },
+    {
       id: "actions",
       header: "",
       cell: ({ row }) => (
@@ -180,7 +192,7 @@ function AuthorForm({
 
   useEffect(() => {
     if (open) {
-      reset(initial ?? { firstName: "", lastName: "", birthDate: null, nationality: null, email: null });
+      reset(initial ?? { firstName: "", lastName: "", birthDate: null, nationality: null, email: null, website: null });
     }
   }, [open, initial, reset]);
 
@@ -231,6 +243,10 @@ function AuthorForm({
           <div className="space-y-1">
             <Label>E-Mail</Label>
             <Input type="email" {...register("email")} placeholder="autor@beispiel.de" />
+          </div>
+          <div className="space-y-1">
+            <Label>Webseite</Label>
+            <Input type="url" {...register("website")} placeholder="https://…" />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Abbrechen</Button>

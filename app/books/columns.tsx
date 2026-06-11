@@ -2,18 +2,20 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { BookDto } from "@/lib/api";
+import { formatReadingDate } from "@/lib/format";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { BookCheck, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 interface ColumnActions {
   onEdit: (book: BookDto) => void;
   onDelete: (book: BookDto) => void;
+  onMarkRead: (book: BookDto) => void;
 }
 
-export function createBookColumns({ onEdit, onDelete }: ColumnActions): ColumnDef<BookDto>[] {
+export function createBookColumns({ onEdit, onDelete, onMarkRead }: ColumnActions): ColumnDef<BookDto>[] {
   return [
     {
       id: "select",
@@ -53,11 +55,15 @@ export function createBookColumns({ onEdit, onDelete }: ColumnActions): ColumnDe
       cell: ({ row }) => row.original.publishedYear ?? "–",
     },
     {
-      id: "category",
-      header: "Kategorie",
+      id: "categories",
+      header: "Kategorien",
       cell: ({ row }) =>
-        row.original.category ? (
-          <Badge variant="secondary">{row.original.category.name}</Badge>
+        row.original.categories.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {row.original.categories.map((c) => (
+              <Badge key={c.id} variant="secondary">{c.name}</Badge>
+            ))}
+          </div>
         ) : (
           "–"
         ),
@@ -75,14 +81,26 @@ export function createBookColumns({ onEdit, onDelete }: ColumnActions): ColumnDe
     {
       id: "read",
       header: "Gelesen",
-      cell: ({ row }) =>
-        row.original.readingHistory.length > 0 ? (
-          <Badge variant="default">
-            {row.original.readingHistory.length}×
-          </Badge>
-        ) : (
-          <Badge variant="outline">Nein</Badge>
-        ),
+      cell: ({ row }) => {
+        const records = row.original.readingHistory;
+        if (records.length === 0) return <Badge variant="outline">Nein</Badge>;
+        const latest = records
+          .filter((r) => r.readAt != null)
+          .sort((a, b) => (a.readAt! < b.readAt! ? 1 : -1))
+          .at(0);
+        return (
+          <div className="flex items-center gap-2">
+            <Badge variant="default">
+              {records.length > 1 ? `${records.length}×` : "Ja"}
+            </Badge>
+            {latest && (
+              <span className="text-muted-foreground text-xs">
+                {formatReadingDate(latest.readAt, latest.readAtPrecision)}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: "actions",
@@ -93,6 +111,9 @@ export function createBookColumns({ onEdit, onDelete }: ColumnActions): ColumnDe
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onMarkRead(row.original)}>
+              <BookCheck className="h-4 w-4 mr-2" /> Als gelesen markieren
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onEdit(row.original)}>
               <Pencil className="h-4 w-4 mr-2" /> Bearbeiten
             </DropdownMenuItem>

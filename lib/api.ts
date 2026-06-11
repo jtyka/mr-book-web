@@ -72,6 +72,7 @@ export interface AuthorDto {
   birthDate: string | null;
   nationality: string | null;
   email: string | null;
+  website: string | null;
 }
 
 export interface AuthorCreateDto {
@@ -80,6 +81,7 @@ export interface AuthorCreateDto {
   birthDate: string | null;
   nationality: string | null;
   email: string | null;
+  website: string | null;
 }
 
 export interface PublisherDto {
@@ -97,15 +99,21 @@ export interface PublisherCreateDto {
   address: string | null;
 }
 
+export type DatePrecision = "DAY" | "MONTH" | "YEAR";
+
 export interface ReadingRecordDto {
   id: number;
   startedAt: string | null;
+  startedAtPrecision: DatePrecision | null;
   readAt: string | null;
+  readAtPrecision: DatePrecision | null;
 }
 
 export interface ReadingRecordCreateDto {
   startedAt: string | null;
+  startedAtPrecision?: DatePrecision | null;
   readAt: string | null;
+  readAtPrecision?: DatePrecision | null;
 }
 
 export interface BookDto {
@@ -120,7 +128,7 @@ export interface BookDto {
   review: string | null;
   authors: AuthorDto[];
   publisher: PublisherDto | null;
-  category: CategoryDto | null;
+  categories: CategoryDto[];
   readingHistory: ReadingRecordDto[];
 }
 
@@ -135,7 +143,7 @@ export interface BookCreateDto {
   review: string | null;
   authorIds: number[];
   publisherId: number | null;
-  categoryId: number | null;
+  categoryIds: number[];
 }
 
 export interface StatsDto {
@@ -155,6 +163,7 @@ export interface StatsDto {
 export interface CountEntry {
   label: string;
   count: number;
+  children?: CountEntry[];
 }
 
 // ----------------------------------------------------------------------------
@@ -226,6 +235,9 @@ export const booksApi = {
       method: "DELETE",
       body: JSON.stringify(ids),
     }),
+
+  listReadingRecords: (bookId: number) =>
+    request<ReadingRecordDto[]>(`/api/books/${bookId}/reading-records`),
 
   addReadingRecord: (bookId: number, dto: ReadingRecordCreateDto) =>
     request<ReadingRecordDto>(`/api/books/${bookId}/reading-records`, {
