@@ -21,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 interface BookFormProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (dto: BookCreateDto) => Promise<void>;
+  onSubmit: (dto: BookCreateDto) => Promise<BookDto | void>;
   initial?: BookDto;
 }
 
@@ -290,12 +290,29 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
       toast.error((e as Error).message);
       return;
     }
-    await onSubmit({
+    const created = await onSubmit({
       ...data,
       pageCount: data.pageCount ? Number(data.pageCount) : null,
       publishedYear: data.publishedYear ? Number(data.publishedYear) : null,
       rating: data.rating ? Number(data.rating) : null,
     });
+    if (!initial && created && isRead) {
+      const started = toDateAndPrecision(startedParts);
+      const read = toDateAndPrecision(readParts);
+      try {
+        await booksApi.addReadingRecord(created.id, {
+          startedAt: started.date,
+          startedAtPrecision: started.precision,
+          readAt: read.date,
+          readAtPrecision: read.precision,
+        });
+        queryClient.invalidateQueries({ queryKey: ["books"] });
+      } catch (e) {
+        toast.error(
+          `Buch angelegt, aber der Lesestatus konnte nicht gespeichert werden: ${(e as Error).message}`
+        );
+      }
+    }
   }
 
   return (
@@ -448,46 +465,44 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               />
             </div>
 
-            {initial && (
-              <div className="col-span-2 space-y-2">
-                <Label>Lesestatus</Label>
-                <div className="border border-border rounded-md p-3 space-y-3">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Checkbox
-                      checked={isRead}
-                      onCheckedChange={(v) => {
-                        setIsRead(!!v);
-                        if (!v) {
-                          setStartedParts(EMPTY_PARTS);
-                          setReadParts(EMPTY_PARTS);
-                        }
-                      }}
-                    />
-                    Gelesen
-                  </label>
-                  {isRead && (
-                    <>
-                      <div className="flex flex-wrap gap-4">
-                        <DatePartsInput
-                          label="Begonnen am"
-                          value={startedParts}
-                          onChange={setStartedParts}
-                        />
-                        <DatePartsInput
-                          label="Gelesen am"
-                          value={readParts}
-                          onChange={setReadParts}
-                        />
-                      </div>
-                      <p className="text-muted-foreground text-xs">
-                        Daten optional – fülle nur aus, was Du weißt. Übernommen
-                        wird alles beim Speichern.
-                      </p>
-                    </>
-                  )}
-                </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Lesestatus</Label>
+              <div className="border border-border rounded-md p-3 space-y-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={isRead}
+                    onCheckedChange={(v) => {
+                      setIsRead(!!v);
+                      if (!v) {
+                        setStartedParts(EMPTY_PARTS);
+                        setReadParts(EMPTY_PARTS);
+                      }
+                    }}
+                  />
+                  Gelesen
+                </label>
+                {isRead && (
+                  <>
+                    <div className="flex flex-wrap gap-4">
+                      <DatePartsInput
+                        label="Begonnen am"
+                        value={startedParts}
+                        onChange={setStartedParts}
+                      />
+                      <DatePartsInput
+                        label="Gelesen am"
+                        value={readParts}
+                        onChange={setReadParts}
+                      />
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                      Daten optional – fülle nur aus, was Du weißt. Übernommen
+                      wird alles beim Speichern.
+                    </p>
+                  </>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <DialogFooter>

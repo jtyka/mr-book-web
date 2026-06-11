@@ -202,7 +202,17 @@ function AuthorForm({
         <DialogHeader>
           <DialogTitle>{initial ? "Autor bearbeiten" : "Neuer Autor"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(async (data) => { await onSubmit(data); })} className="space-y-4">
+        <form
+          onSubmit={handleSubmit(async (data) => {
+            await onSubmit({
+              ...data,
+              birthDate: data.birthDate || null,
+              email: data.email || null,
+              website: data.website || null,
+            });
+          })}
+          className="space-y-4"
+        >
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Vorname *</Label>

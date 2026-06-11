@@ -99,7 +99,7 @@ export default function BooksPage() {
     if (editBook) {
       await updateMutation.mutateAsync({ id: editBook.id, dto });
     } else {
-      await createMutation.mutateAsync(dto);
+      return createMutation.mutateAsync(dto);
     }
   }
 
