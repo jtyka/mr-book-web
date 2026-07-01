@@ -23,6 +23,10 @@ export default function LoginPage() {
   const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
   const [regError, setRegError] = useState("");
   const [regLoading, setRegLoading] = useState(false);
+  const [regDone, setRegDone] = useState<{
+    message: string;
+    devVerifyUrl?: string;
+  } | null>(null);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -46,19 +50,23 @@ export default function LoginPage() {
       setRegError("Passwörter stimmen nicht überein");
       return;
     }
-    if (regPassword.length < 8) {
-      setRegError("Passwort muss mindestens 8 Zeichen lang sein");
+    if (regPassword.length < 12) {
+      setRegError("Passwort muss mindestens 12 Zeichen lang sein");
       return;
     }
 
     setRegLoading(true);
     try {
-      await register(regEmail, regPassword, regName);
-      router.push("/books");
+      const res = await register(regEmail, regPassword, regName);
+      setRegDone(res);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Registrierung fehlgeschlagen";
-      if (msg.includes("409")) {
-        setRegError("E-Mail wird bereits verwendet");
+      if (msg.includes("429")) {
+        setRegError("Zu viele Versuche. Bitte versuche es später erneut.");
+      } else if (msg.includes("400")) {
+        setRegError(
+          "Passwort zu schwach oder Eingabe ungültig. Bitte wähle ein sichereres Passwort (mind. 12 Zeichen, keine gängigen Passwörter).",
+        );
       } else {
         setRegError(msg);
       }
@@ -154,8 +162,39 @@ export default function LoginPage() {
           </form>
         )}
 
+        {/* Bestätigungshinweis nach erfolgreicher Registrierung */}
+        {tab === "register" && regDone && (
+          <div className="space-y-4 rounded-lg border border-input p-5 text-sm">
+            <p>{regDone.message}</p>
+            {regDone.devVerifyUrl && (
+              <p className="space-y-1">
+                <span className="block text-muted-foreground">
+                  Entwicklungsmodus (noch kein E-Mail-Versand aktiv) — hier
+                  bestätigen:
+                </span>
+                <a
+                  href={regDone.devVerifyUrl}
+                  className="block break-all font-medium text-primary underline"
+                >
+                  E-Mail-Adresse bestätigen
+                </a>
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setRegDone(null);
+                setTab("login");
+              }}
+              className="text-primary underline"
+            >
+              Zurück zur Anmeldung
+            </button>
+          </div>
+        )}
+
         {/* Registrierungs-Formular */}
-        {tab === "register" && (
+        {tab === "register" && !regDone && (
           <form onSubmit={handleRegister} className="space-y-5">
             <div className="space-y-1.5">
               <label htmlFor="reg-name" className="text-sm font-medium">
@@ -193,12 +232,16 @@ export default function LoginPage() {
                 id="reg-password"
                 type="password"
                 required
-                minLength={8}
+                minLength={12}
                 autoComplete="new-password"
                 value={regPassword}
                 onChange={(e) => setRegPassword(e.target.value)}
                 className="block w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-base outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/50"
               />
+              <p className="text-xs text-muted-foreground">
+                Mindestens 12 Zeichen. Vermeide gängige oder leicht zu
+                erratende Passwörter.
+              </p>
             </div>
             <div className="space-y-1.5">
               <label

@@ -8,13 +8,24 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { authApi, setAuthToken, getAuthToken, type UserDto } from "./api";
+import {
+  authApi,
+  setAuthToken,
+  getAuthToken,
+  type UserDto,
+  type RegisterResponse,
+} from "./api";
 
 interface AuthContextValue {
   user: UserDto | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    name: string,
+  ) => Promise<RegisterResponse>;
+  verifyEmail: (token: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -43,14 +54,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }, []);
 
+  // Registrierung meldet NICHT automatisch an — die E-Mail muss erst bestätigt
+  // werden. Gibt die (neutrale) Server-Nachricht zurück.
   const register = useCallback(
     async (email: string, password: string, name: string) => {
-      const data = await authApi.register(email, password, name);
-      setAuthToken(data.token);
-      setUser(data.user);
+      return authApi.register(email, password, name);
     },
     [],
   );
+
+  const verifyEmail = useCallback(async (token: string) => {
+    const data = await authApi.verify(token);
+    setAuthToken(data.token);
+    setUser(data.user);
+  }, []);
 
   const logout = useCallback(async () => {
     await authApi.logout().catch(() => {});
@@ -59,7 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext value={{ user, loading, login, register, logout }}>
+    <AuthContext
+      value={{ user, loading, login, register, verifyEmail, logout }}
+    >
       {children}
     </AuthContext>
   );

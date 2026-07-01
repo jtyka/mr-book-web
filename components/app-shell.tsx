@@ -8,7 +8,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
 
-  if (!user || pathname === "/login") {
+  if (!user || pathname === "/login" || pathname === "/verify") {
     return <>{children}</>;
   }
 

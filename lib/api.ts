@@ -44,6 +44,12 @@ export interface AuthResponse {
   expiresAt: string;
 }
 
+export interface RegisterResponse {
+  message: string;
+  // Nur im Dev-Modus gesetzt, solange kein echter E-Mail-Versand angebunden ist.
+  devVerifyUrl?: string;
+}
+
 export interface PagedResponse<T> {
   content: T[];
   totalElements: number;
@@ -356,9 +362,15 @@ export const authApi = {
     }),
 
   register: (email: string, password: string, name: string) =>
-    request<AuthResponse>("/api/auth/register", {
+    request<RegisterResponse>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({ email, password, name }),
+    }),
+
+  verify: (token: string) =>
+    request<AuthResponse>("/api/auth/verify", {
+      method: "POST",
+      body: JSON.stringify({ token }),
     }),
 
   logout: () =>
