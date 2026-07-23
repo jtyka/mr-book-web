@@ -96,7 +96,7 @@ export default function CategoriesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Kategorie löschen?</AlertDialogTitle>
             <AlertDialogDescription>
-              „{deleteCategory?.name}" wird gelöscht. Kindkategorien werden dem Elternelement zugeordnet.
+              „{deleteCategory?.name}“ wird gelöscht. Kindkategorien werden dem Elternelement zugeordnet.
               Bücher in dieser Kategorie verlieren ihre Kategorie-Zuordnung.
             </AlertDialogDescription>
           </AlertDialogHeader>

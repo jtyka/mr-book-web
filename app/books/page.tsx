@@ -213,7 +213,7 @@ export default function BooksPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Buch löschen?</AlertDialogTitle>
             <AlertDialogDescription>
-              „{deleteBook?.title}" und alle Leseeinträge werden unwiderruflich
+              „{deleteBook?.title}“ und alle Leseeinträge werden unwiderruflich
               gelöscht.
             </AlertDialogDescription>
           </AlertDialogHeader>

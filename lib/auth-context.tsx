@@ -37,15 +37,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const token = getAuthToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    authApi
-      .me()
-      .then((data) => setUser(data.user))
-      .catch(() => setAuthToken(null))
-      .finally(() => setLoading(false));
+    // Ohne Token gibt es nichts zu validieren — trotzdem über eine Promise
+    // auflösen, damit setLoading() nie synchron im Effect-Body läuft
+    // (sondern erst im .finally()-Microtask), wie im Token-Fall.
+    const check = token
+      ? authApi.me().then((data) => setUser(data.user)).catch(() => setAuthToken(null))
+      : Promise.resolve();
+    check.finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

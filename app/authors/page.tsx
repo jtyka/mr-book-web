@@ -159,7 +159,7 @@ export default function AuthorsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Autor löschen?</AlertDialogTitle>
             <AlertDialogDescription>
-              „{deleteAuthor?.firstName} {deleteAuthor?.lastName}" wird unwiderruflich gelöscht.
+              „{deleteAuthor?.firstName} {deleteAuthor?.lastName}“ wird unwiderruflich gelöscht.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

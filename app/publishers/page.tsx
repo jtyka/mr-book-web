@@ -120,7 +120,7 @@ export default function PublishersPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Verlag löschen?</AlertDialogTitle>
-            <AlertDialogDescription>„{deletePublisher?.name}" wird unwiderruflich gelöscht.</AlertDialogDescription>
+            <AlertDialogDescription>„{deletePublisher?.name}“ wird unwiderruflich gelöscht.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
