@@ -207,6 +207,27 @@ function CategoryForm({
     }
   });
 
+  // Beim Bearbeiten dürfen die Kategorie selbst und alle ihre Nachfahren nicht
+  // als übergeordnete Kategorie auswählbar sein, sonst entsteht ein Zyklus.
+  const excludedIds = (() => {
+    if (editingId == null) return new Set<number>();
+    const excluded = new Set<number>([editingId]);
+    const visited = new Set<number>();
+    const queue = [editingId];
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+      for (const c of allCategories) {
+        if (c.parentId === currentId && !excluded.has(c.id)) {
+          excluded.add(c.id);
+          queue.push(c.id);
+        }
+      }
+    }
+    return excluded;
+  })();
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
@@ -230,7 +251,7 @@ function CategoryForm({
               <SelectContent>
                 <SelectItem value="none">– Hauptkategorie –</SelectItem>
                 {allCategories
-                  .filter((c) => c.id !== editingId)
+                  .filter((c) => !excludedIds.has(c.id))
                   .map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
