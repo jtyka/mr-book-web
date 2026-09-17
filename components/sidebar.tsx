@@ -10,6 +10,7 @@ import {
   BarChart3,
   Library,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -21,6 +22,11 @@ const navItems = [
   { href: "/publishers", label: "Verlage", icon: Building2 },
   { href: "/categories", label: "Kategorien", icon: Tag },
   { href: "/stats", label: "Statistik", icon: BarChart3 },
+];
+
+// Nur für Admins sichtbar. Der eigentliche Schutz liegt in der API.
+const adminNavItems = [
+  { href: "/admin", label: "Nutzerverwaltung", icon: ShieldCheck },
 ];
 
 export function Sidebar() {
@@ -41,7 +47,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 py-4">
         <ul className="space-y-1 px-2">
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {[...navItems, ...(user?.role === "ADMIN" ? adminNavItems : [])].map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
               <li key={href}>

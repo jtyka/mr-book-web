@@ -32,10 +32,30 @@ export function getAuthToken(): string | null {
 // Types
 // ----------------------------------------------------------------------------
 
+export type Role = "USER" | "ADMIN";
+
 export interface UserDto {
   id: number;
   email: string;
   name: string;
+  role: Role;
+}
+
+export interface AdminUserDto {
+  id: number;
+  email: string;
+  name: string;
+  role: Role;
+  emailVerified: string | null;
+  disabledAt: string | null;
+  createdAt: string;
+  bookCount: number;
+  lastLoginAt: string | null;
+}
+
+export interface AdminUserUpdateDto {
+  emailVerified?: true;
+  disabled?: boolean;
 }
 
 export interface AuthResponse {
@@ -377,4 +397,21 @@ export const authApi = {
     request<void>("/api/auth/logout", { method: "POST" }),
 
   me: () => request<{ user: UserDto }>("/api/auth/me"),
+};
+
+// ----------------------------------------------------------------------------
+// Admin (nur für Nutzer mit Rolle ADMIN)
+// ----------------------------------------------------------------------------
+
+export const adminApi = {
+  listUsers: (page = 0, size = 50) =>
+    request<PagedResponse<AdminUserDto>>(
+      `/api/admin/users?${pagedParams(page, size, "createdAt", "desc")}`
+    ),
+
+  updateUser: (id: number, dto: AdminUserUpdateDto) =>
+    request<AdminUserDto>(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(dto),
+    }),
 };
