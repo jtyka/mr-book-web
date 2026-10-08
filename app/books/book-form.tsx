@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { authorsApi, booksApi, categoriesApi, publishersApi, BookDto, BookCreateDto, DatePrecision } from "@/lib/api";
+import { bookDraftKey, clearDraft, loadDraft, saveDraft } from "@/lib/draft";
+import { useApiKeepalive } from "@/lib/use-api-keepalive";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -17,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface BookFormProps {
   open: boolean;
@@ -35,6 +39,31 @@ interface DateParts {
 }
 
 const EMPTY_PARTS: DateParts = { year: "", month: "", day: "" };
+
+// Entwurf: kompletter Formularzustand + Lesestatus, der debounced beim
+// Bearbeiten lokal gesichert wird (Rettungsnetz bei Verbindungsabbrüchen).
+interface BookDraftData {
+  values: BookCreateDto;
+  isRead: boolean;
+  startedParts: DateParts;
+  readParts: DateParts;
+}
+
+// Leeres Formular – Vorbelegung, Zurücksetzen und das Auffüllen eines
+// unvollständigen Entwurfs greifen auf dieselbe Definition zu.
+const EMPTY_BOOK_VALUES: BookCreateDto = {
+  title: "",
+  isbn: null,
+  pageCount: null,
+  publishedYear: null,
+  language: null,
+  description: null,
+  rating: null,
+  review: null,
+  authorIds: [],
+  publisherId: null,
+  categoryIds: [],
+};
 
 function toDateAndPrecision(p: DateParts): {
   date: string | null;
@@ -127,6 +156,27 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
   const [readParts, setReadParts] = useState<DateParts>(EMPTY_PARTS);
   // verhindert, dass ein Refetch während des Bearbeitens die Eingaben überschreibt
   const readStateInitialized = useRef(false);
+  // true, sobald der Nutzer den Lesestatus selbst verändert (oder einen
+  // Entwurf wiederherstellt) hat – steuert zusammen mit isDirty, ob ein
+  // Entwurf gesichert werden soll
+  const [readStatusTouched, setReadStatusTouched] = useState(false);
+
+  // Solange der Dialog offen ist, die Verbindung zur API warm halten – ein
+  // langes Formular ist sonst genau die Leerlaufphase, in der die Verbindung
+  // geschlossen wird und der nächste Request sofort scheitert.
+  useApiKeepalive(open);
+
+  // Rettungsnetz: Formular-Entwurf in localStorage, falls das Speichern
+  // fehlschlägt (z. B. Verbindungsabbruch). Der Key enthält die Nutzer-ID,
+  // damit auf einem gemeinsam genutzten Browser niemand den Entwurf eines
+  // anderen Kontos vorgelegt bekommt.
+  const { user } = useAuth();
+  const draftKey = useMemo(() => bookDraftKey(user?.id, initial?.id), [user?.id, initial?.id]);
+  const [draftBanner, setDraftBanner] = useState<{ savedAt: string; data: BookDraftData } | null>(
+    null
+  );
+  // verhindert, dass der Entwurf bei jedem Render erneut geprüft wird
+  const draftCheckedRef = useRef(false);
 
   const { data: readingRecords } = useQuery({
     queryKey: ["reading-records", initial?.id],
@@ -199,21 +249,9 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     reset,
     setValue,
     watch,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isDirty },
   } = useForm<BookCreateDto>({
-    defaultValues: {
-      title: "",
-      isbn: null,
-      pageCount: null,
-      publishedYear: null,
-      language: null,
-      description: null,
-      rating: null,
-      review: null,
-      authorIds: [],
-      publisherId: null,
-      categoryIds: [],
-    },
+    defaultValues: EMPTY_BOOK_VALUES,
   });
 
   useEffect(() => {
@@ -232,25 +270,16 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
         categoryIds: initial.categories.map((c) => c.id),
       });
     } else {
-      reset({
-        title: "",
-        isbn: null,
-        pageCount: null,
-        publishedYear: null,
-        language: null,
-        description: null,
-        rating: null,
-        review: null,
-        authorIds: [],
-        publisherId: null,
-        categoryIds: [],
-      });
+      reset(EMPTY_BOOK_VALUES);
     }
   }, [initial, open, reset]);
 
   useEffect(() => {
     if (!open) {
       readStateInitialized.current = false;
+      draftCheckedRef.current = false;
+      setReadStatusTouched(false);
+      setDraftBanner(null);
       return;
     }
     if (readStateInitialized.current) return;
@@ -259,8 +288,19 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     setIsRead(!!rec);
     setStartedParts(rec ? toParts(rec.startedAt, rec.startedAtPrecision) : EMPTY_PARTS);
     setReadParts(rec ? toParts(rec.readAt, rec.readAtPrecision) : EMPTY_PARTS);
+    setReadStatusTouched(false);
     readStateInitialized.current = true;
   }, [open, initial, readingRecords]);
+
+  // Beim Öffnen einmalig prüfen, ob ein nicht gespeicherter Entwurf existiert.
+  // Wird bewusst NICHT automatisch eingespielt – der Nutzer entscheidet per
+  // Banner, ob er ihn wiederherstellen oder verwerfen möchte.
+  useEffect(() => {
+    if (!open) return;
+    if (draftCheckedRef.current) return;
+    draftCheckedRef.current = true;
+    setDraftBanner(loadDraft<BookDraftData>(draftKey));
+  }, [open, draftKey]);
 
   const watchedAuthorIds = watch("authorIds") ?? [];
   const watchedCategoryIds = watch("categoryIds") ?? [];
@@ -283,6 +323,67 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     }
   }
 
+  // Gesamter Formularzustand inkl. Lesestatus – Grundlage für den Entwurf.
+  // watch() ohne Argument abonniert alle Felder (auch unregistrierte
+  // Texteingaben), damit wirklich nichts verloren geht.
+  const formValues = watch();
+  const hasUnsavedChanges = isDirty || readStatusTouched;
+
+  // Entwurf debounced sichern, solange der Dialog offen ist und tatsächlich
+  // etwas verändert wurde. Ein unangetastet geöffnetes Formular legt keinen
+  // Entwurf an.
+  // Während des Speicherns wird nicht gesichert: sonst könnte ein noch
+  // laufender Debounce-Timer nach dem erfolgreichen clearDraft() feuern und
+  // einen Entwurf für ein bereits gespeichertes Buch neu anlegen.
+  useEffect(() => {
+    if (!open || !hasUnsavedChanges || isSubmitting) return;
+    const timer = setTimeout(() => {
+      saveDraft<BookDraftData>(draftKey, {
+        values: formValues,
+        isRead,
+        startedParts,
+        readParts,
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [
+    open,
+    hasUnsavedChanges,
+    isSubmitting,
+    draftKey,
+    formValues,
+    isRead,
+    startedParts,
+    readParts,
+  ]);
+
+  function handleRestoreDraft() {
+    if (!draftBanner) return;
+    const { data } = draftBanner;
+    // Defensiv: ein beschädigter Entwurf oder einer aus einer älteren
+    // Formularversion darf den Dialog nicht zerlegen – fehlende Felder werden
+    // mit dem leeren Formular aufgefüllt.
+    try {
+      reset({ ...EMPTY_BOOK_VALUES, ...(data.values ?? {}) });
+      setIsRead(!!data.isRead);
+      setStartedParts(data.startedParts ?? EMPTY_PARTS);
+      setReadParts(data.readParts ?? EMPTY_PARTS);
+      setReadStatusTouched(true);
+      // verhindert, dass ein später eintreffendes Refetch der Reading-Records
+      // die gerade wiederhergestellten Werte sofort wieder überschreibt
+      readStateInitialized.current = true;
+    } catch {
+      clearDraft(draftKey);
+      toast.error("Der gespeicherte Entwurf konnte nicht wiederhergestellt werden.");
+    }
+    setDraftBanner(null);
+  }
+
+  function handleDiscardDraft() {
+    clearDraft(draftKey);
+    setDraftBanner(null);
+  }
+
   async function handleFormSubmit(data: BookCreateDto) {
     try {
       await syncReadingRecord();
@@ -296,6 +397,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
       publishedYear: data.publishedYear ? Number(data.publishedYear) : null,
       rating: data.rating ? Number(data.rating) : null,
     });
+    let readingRecordFailed = false;
     if (!initial && created && isRead) {
       const started = toDateAndPrecision(startedParts);
       const read = toDateAndPrecision(readParts);
@@ -308,11 +410,16 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
         });
         queryClient.invalidateQueries({ queryKey: ["books"] });
       } catch (e) {
+        readingRecordFailed = true;
         toast.error(
           `Buch angelegt, aber der Lesestatus konnte nicht gespeichert werden: ${(e as Error).message}`
         );
       }
     }
+    // Der Entwurf wird nur verworfen, wenn wirklich alles gespeichert ist.
+    // Scheitert der Lesestatus-Record, bleibt er als Rettungsnetz liegen –
+    // genau diese Angaben wären sonst verloren.
+    if (!readingRecordFailed) clearDraft(draftKey);
   }
 
   return (
@@ -321,6 +428,26 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
         <DialogHeader>
           <DialogTitle>{initial ? "Buch bearbeiten" : "Neues Buch"}</DialogTitle>
         </DialogHeader>
+
+        {draftBanner && (
+          <Alert>
+            <AlertTitle>Nicht gespeicherter Entwurf gefunden</AlertTitle>
+            <AlertDescription>
+              <p>
+                Entwurf vom {new Date(draftBanner.savedAt).toLocaleString("de-DE")}.
+                Möchtest Du ihn wiederherstellen oder verwerfen?
+              </p>
+              <div className="flex gap-2 mt-2">
+                <Button type="button" size="sm" onClick={handleRestoreDraft}>
+                  Wiederherstellen
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={handleDiscardDraft}>
+                  Verwerfen
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -473,6 +600,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
                     checked={isRead}
                     onCheckedChange={(v) => {
                       setIsRead(!!v);
+                      setReadStatusTouched(true);
                       if (!v) {
                         setStartedParts(EMPTY_PARTS);
                         setReadParts(EMPTY_PARTS);
@@ -487,12 +615,18 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
                       <DatePartsInput
                         label="Begonnen am"
                         value={startedParts}
-                        onChange={setStartedParts}
+                        onChange={(v) => {
+                          setStartedParts(v);
+                          setReadStatusTouched(true);
+                        }}
                       />
                       <DatePartsInput
                         label="Gelesen am"
                         value={readParts}
-                        onChange={setReadParts}
+                        onChange={(v) => {
+                          setReadParts(v);
+                          setReadStatusTouched(true);
+                        }}
                       />
                     </div>
                     <p className="text-muted-foreground text-xs">
@@ -505,7 +639,12 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sm:justify-between">
+            {/* Macht das Rettungsnetz sichtbar – nur hier gilt es, deshalb
+                steht der Hinweis nicht in der allgemeinen Fehlermeldung. */}
+            <p className="text-muted-foreground text-xs sm:mr-auto">
+              {hasUnsavedChanges ? "Entwurf wird automatisch lokal gesichert." : ""}
+            </p>
             <Button type="button" variant="outline" onClick={onClose}>
               Abbrechen
             </Button>

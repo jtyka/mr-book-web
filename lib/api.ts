@@ -3,7 +3,7 @@
 // Base URL wird per Umgebungsvariable konfiguriert
 // ============================================================================
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+export const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 // ----------------------------------------------------------------------------
 // Auth Token Management
@@ -184,7 +184,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...(init?.headers as Record<string, string>),
   };
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  const method = (init?.method ?? "GET").toUpperCase();
+  // Nur idempotente Methoden dürfen bei einem Netzwerkfehler automatisch
+  // wiederholt werden. Ein POST könnte den Server trotz Verbindungsabbruch
+  // bereits erreicht haben (nur die Antwort ging verloren) – ein erneuter
+  // Versuch würde dann riskieren, den Datensatz zu duplizieren.
+  const retryable = method === "GET" || method === "PUT" || method === "DELETE";
+  // Bewusst allgemein formuliert: request() bedient alle Endpunkte, ein
+  // Entwurfs-Rettungsnetz gibt es aber nur im Buch-Formular – hier darf also
+  // nichts versprochen werden, was anderswo nicht gilt.
+  const offlineMessage =
+    method === "GET"
+      ? "Keine Verbindung zum Server — bitte Verbindung prüfen und die Seite neu laden."
+      : "Keine Verbindung zum Server — bitte Verbindung prüfen und erneut speichern.";
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  } catch (err) {
+    // fetch wirft ausschließlich bei echten Netzwerkfehlern einen TypeError;
+    // alles andere unverändert weitergeben, damit Programmierfehler nicht als
+    // Verbindungsproblem getarnt werden.
+    if (!(err instanceof TypeError)) throw err;
+    if (!retryable) throw new Error(offlineMessage);
+    // Eine im Leerlauf geschlossene Verbindung (ERR_CONNECTION_CLOSED) lässt
+    // den ersten Versuch sofort scheitern – der zweite baut eine neue auf.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    try {
+      res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+    } catch {
+      throw new Error(offlineMessage);
+    }
+  }
   if (res.status === 401) {
     setAuthToken(null);
     window.location.href = "/login";
