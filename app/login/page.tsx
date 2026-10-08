@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Library } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,7 @@ export default function LoginPage() {
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -33,10 +35,10 @@ export default function LoginPage() {
     setLoginError("");
     setLoginLoading(true);
     try {
-      await login(loginEmail, loginPassword);
+      await login(loginEmail, loginPassword, rememberMe);
       router.push("/books");
-    } catch {
-      setLoginError("E-Mail oder Passwort falsch");
+    } catch (err) {
+      setLoginError(loginErrorMessage(err));
     } finally {
       setLoginLoading(false);
     }
@@ -148,6 +150,20 @@ export default function LoginPage() {
                 onChange={(e) => setLoginPassword(e.target.value)}
                 className="block w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-base outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/50"
               />
+            </div>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="login-remember"
+                checked={rememberMe}
+                onCheckedChange={(v) => setRememberMe(v === true)}
+                className="mt-0.5"
+              />
+              <label htmlFor="login-remember" className="text-sm leading-snug">
+                <span className="font-medium">Angemeldet bleiben</span>
+                <span className="block text-xs text-muted-foreground">
+                  Nur auf eigenen Geräten aktivieren.
+                </span>
+              </label>
             </div>
             {loginError && (
               <p className="text-sm text-destructive">{loginError}</p>
@@ -275,4 +291,22 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+// Nur 401 heißt „falsche Zugangsdaten"; Rate-Limit (429), abgelehnte Herkunft
+// (403) oder Netzwerkfehler sollen als solche erkennbar sein.
+function loginErrorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : "";
+  if (message === "Nicht authentifiziert") return "E-Mail oder Passwort falsch";
+  const match = message.match(/^API \d+: ([\s\S]*)$/);
+  if (match) {
+    try {
+      const body = JSON.parse(match[1]) as { error?: unknown };
+      if (typeof body.error === "string") return body.error;
+    } catch {
+      // kein JSON — unten generische Meldung
+    }
+    return "Anmeldung fehlgeschlagen. Bitte versuche es später erneut.";
+  }
+  return message || "Anmeldung fehlgeschlagen. Bitte versuche es später erneut.";
 }

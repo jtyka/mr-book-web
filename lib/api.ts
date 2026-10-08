@@ -6,26 +6,20 @@
 export const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 // ----------------------------------------------------------------------------
-// Auth Token Management
+// Sitzung
 // ----------------------------------------------------------------------------
+// Das Session-Token liegt in einem HttpOnly-Cookie, das die API setzt. Das
+// Frontend kann (und soll) es nicht lesen; alle Requests senden es per
+// `credentials: "include"` automatisch mit.
 
-let authToken: string | null = null;
-
-export function setAuthToken(token: string | null) {
-  authToken = token;
-  if (token) {
-    localStorage.setItem("mr-book-token", token);
-  } else {
+// Altlast: frühere Versionen legten das Token in localStorage ab. Einmalig
+// entfernen, damit dort kein gültiges Token mehr herumliegt.
+if (typeof window !== "undefined") {
+  try {
     localStorage.removeItem("mr-book-token");
+  } catch {
+    // localStorage nicht verfügbar (z. B. blockiert) — nichts zu bereinigen.
   }
-}
-
-export function getAuthToken(): string | null {
-  if (authToken) return authToken;
-  if (typeof window !== "undefined") {
-    authToken = localStorage.getItem("mr-book-token");
-  }
-  return authToken;
 }
 
 // ----------------------------------------------------------------------------
@@ -40,7 +34,6 @@ export interface UserDto {
 
 export interface AuthResponse {
   user: UserDto;
-  token: string;
   expiresAt: string;
 }
 
@@ -176,11 +169,16 @@ export interface CountEntry {
 // Helper
 // ----------------------------------------------------------------------------
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getAuthToken();
+// `noAuthRedirect`: 401 ist hier ein erwartbares Ergebnis (falsches Passwort,
+// nicht angemeldet beim Start) und darf nicht zur Anmeldeseite navigieren.
+interface RequestOptions extends RequestInit {
+  noAuthRedirect?: boolean;
+}
+
+async function request<T>(path: string, options?: RequestOptions): Promise<T> {
+  const { noAuthRedirect, ...init } = options ?? {};
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(init?.headers as Record<string, string>),
   };
 
@@ -200,7 +198,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
   } catch (err) {
     // fetch wirft ausschließlich bei echten Netzwerkfehlern einen TypeError;
     // alles andere unverändert weitergeben, damit Programmierfehler nicht als
@@ -211,14 +213,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // den ersten Versuch sofort scheitern – der zweite baut eine neue auf.
     await new Promise((resolve) => setTimeout(resolve, 400));
     try {
-      res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+      res = await fetch(`${BASE_URL}${path}`, {
+        ...init,
+        headers,
+        credentials: "include",
+      });
     } catch {
       throw new Error(offlineMessage);
     }
   }
   if (res.status === 401) {
-    setAuthToken(null);
-    window.location.href = "/login";
+    // Auf der Anmeldeseite selbst nie navigieren (sonst Reload-Schleife).
+    if (!noAuthRedirect && window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
     throw new Error("Nicht authentifiziert");
   }
   if (!res.ok) {
@@ -386,10 +394,11 @@ export const statsApi = {
 // ----------------------------------------------------------------------------
 
 export const authApi = {
-  login: (email: string, password: string) =>
+  login: (email: string, password: string, rememberMe: boolean) =>
     request<AuthResponse>("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, rememberMe }),
+      noAuthRedirect: true,
     }),
 
   register: (email: string, password: string, name: string) =>
@@ -402,10 +411,19 @@ export const authApi = {
     request<AuthResponse>("/api/auth/verify", {
       method: "POST",
       body: JSON.stringify({ token }),
+      noAuthRedirect: true,
     }),
 
   logout: () =>
-    request<void>("/api/auth/logout", { method: "POST" }),
+    request<void>("/api/auth/logout", { method: "POST", noAuthRedirect: true }),
 
-  me: () => request<{ user: UserDto }>("/api/auth/me"),
+  // Meldet alle Sitzungen des Benutzers ab, auch die aktuelle.
+  logoutAll: () =>
+    request<void>("/api/auth/logout-all", {
+      method: "POST",
+      noAuthRedirect: true,
+    }),
+
+  me: () =>
+    request<{ user: UserDto }>("/api/auth/me", { noAuthRedirect: true }),
 };
