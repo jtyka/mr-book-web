@@ -149,6 +149,20 @@ export interface BookCreateDto {
   categoryIds: number[];
 }
 
+// Ergebnis von GET /api/books/lookup (ISBN-Lookup)
+export interface IsbnLookupDto {
+  isbn: string;
+  sources: ("google" | "openlibrary")[];
+  title: string; // "" wenn kein Katalog einen Titel kennt
+  authors: string[];
+  publisher: string | null;
+  publishedYear: number | null;
+  pageCount: number | null;
+  language: string | null;
+  description: string | null;
+  coverUrl: string | null;
+}
+
 export interface StatsDto {
   totalBooks: number;
   totalAuthors: number;
@@ -172,6 +186,20 @@ export interface CountEntry {
 // ----------------------------------------------------------------------------
 // Helper
 // ----------------------------------------------------------------------------
+
+// Fehler einer API-Antwort mit Statuscode; `retryAfter` (Sekunden) stammt aus
+// dem Header `Retry-After`, sofern vorhanden und lesbar. Die Meldung bleibt
+// wie bisher `API <status>: <text>`, bestehende Aufrufer sind nicht betroffen.
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public retryAfter: number | null = null
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 // `noAuthRedirect`: 401 ist hier ein erwartbares Ergebnis (falsches Passwort,
 // nicht angemeldet beim Start) und darf nicht zur Anmeldeseite navigieren.
@@ -235,7 +263,12 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${text}`);
+    const retryAfter = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+    throw new ApiError(
+      res.status,
+      `API ${res.status}: ${text}`,
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null
+    );
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -275,6 +308,9 @@ export const booksApi = {
     ),
 
   get: (id: number) => request<BookDto>(`/api/books/${id}`),
+
+  lookupIsbn: (isbn: string) =>
+    request<IsbnLookupDto>(`/api/books/lookup?isbn=${encodeURIComponent(isbn)}`),
 
   create: (dto: BookCreateDto) =>
     request<BookDto>("/api/books", { method: "POST", body: JSON.stringify(dto) }),

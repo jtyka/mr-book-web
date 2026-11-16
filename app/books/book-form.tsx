@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { IsbnLookup, IsbnApplyPatch } from "./isbn-lookup";
 
 interface BookFormProps {
   open: boolean;
@@ -224,12 +225,12 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     invalidateRecords();
   }
 
-  const { data: authorsPage } = useQuery({
+  const { data: authorsPage, isSuccess: authorsLoaded } = useQuery({
     queryKey: ["authors-all"],
     queryFn: () => authorsApi.list(0, 0),
     enabled: open,
   });
-  const { data: publishersPage } = useQuery({
+  const { data: publishersPage, isSuccess: publishersLoaded } = useQuery({
     queryKey: ["publishers-all"],
     queryFn: () => publishersApi.list(0, 0),
     enabled: open,
@@ -248,6 +249,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     handleSubmit,
     reset,
     setValue,
+    getValues,
     watch,
     formState: { isSubmitting, isDirty },
   } = useForm<BookCreateDto>({
@@ -312,6 +314,22 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     } else {
       setValue("authorIds", [...current, id]);
     }
+  }
+
+  // Übernimmt die im ISBN-Lookup angehakten Werte; Autoren kommen zur
+  // bestehenden Auswahl dazu, der Verlag ersetzt den bisherigen.
+  function applyLookup(patch: IsbnApplyPatch) {
+    const opts = { shouldDirty: true };
+    if (patch.title !== undefined) setValue("title", patch.title, opts);
+    if (patch.publishedYear !== undefined) setValue("publishedYear", patch.publishedYear, opts);
+    if (patch.pageCount !== undefined) setValue("pageCount", patch.pageCount, opts);
+    if (patch.language !== undefined) setValue("language", patch.language, opts);
+    if (patch.description !== undefined) setValue("description", patch.description, opts);
+    if (patch.addAuthorIds.length > 0) {
+      const merged = new Set([...(getValues("authorIds") ?? []), ...patch.addAuthorIds]);
+      setValue("authorIds", [...merged], opts);
+    }
+    if (patch.publisherId !== undefined) setValue("publisherId", patch.publisherId, opts);
   }
 
   function toggleCategory(id: number) {
@@ -451,14 +469,29 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
 
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            {/* key: beim Schließen/Wechsel des Buchs verfällt die Vorschau */}
+            <IsbnLookup
+              key={`${open}:${initial?.id ?? "new"}`}
+              isbnInput={register("isbn")}
+              isbn={watch("isbn")}
+              values={{
+                title: watch("title"),
+                publishedYear: watch("publishedYear"),
+                pageCount: watch("pageCount"),
+                language: watch("language"),
+                description: watch("description"),
+                authorIds: watchedAuthorIds,
+                publisherId: watch("publisherId"),
+              }}
+              authors={authors}
+              publishers={publishers}
+              listsReady={authorsLoaded && publishersLoaded}
+              onApply={applyLookup}
+            />
+
             <div className="col-span-2 space-y-1">
               <Label htmlFor="title">Titel *</Label>
               <Input id="title" {...register("title", { required: true })} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="isbn">ISBN</Label>
-              <Input id="isbn" {...register("isbn")} placeholder="978-…" />
             </div>
 
             <div className="space-y-1">
@@ -491,7 +524,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="col-span-2 space-y-1">
               <Label>Verlag</Label>
               <Select
                 value={watch("publisherId")?.toString() ?? "none"}
