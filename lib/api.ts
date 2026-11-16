@@ -43,6 +43,10 @@ export interface RegisterResponse {
   devVerifyUrl?: string;
 }
 
+export interface ResendVerificationResponse {
+  message: string;
+}
+
 export interface PagedResponse<T> {
   content: T[];
   totalElements: number;
@@ -412,6 +416,12 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ token }),
       noAuthRedirect: true,
+    }),
+
+  resendVerification: (email: string) =>
+    request<ResendVerificationResponse>("/api/auth/verify/resend", {
+      method: "POST",
+      body: JSON.stringify({ email }),
     }),
 
   logout: () =>

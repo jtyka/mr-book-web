@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, register } = useAuth();
+  const { login, register, resendVerification } = useAuth();
   const [tab, setTab] = useState<"login" | "register">("login");
 
   const [loginEmail, setLoginEmail] = useState("");
@@ -18,6 +18,10 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+  const [loginNeedsVerification, setLoginNeedsVerification] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resendError, setResendError] = useState("");
 
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
@@ -33,14 +37,41 @@ export default function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError("");
+    setLoginNeedsVerification(false);
+    setResendMessage("");
+    setResendError("");
     setLoginLoading(true);
     try {
       await login(loginEmail, loginPassword, rememberMe);
       router.push("/books");
     } catch (err) {
       setLoginError(loginErrorMessage(err));
+      // 403 kommt auch bei abgelehnter Herkunft (CSRF-Schutz) — den
+      // Resend-Link nur bei unbestätigter E-Mail anbieten.
+      const msg = err instanceof Error ? err.message : "";
+      setLoginNeedsVerification(
+        msg.startsWith("API 403") && !msg.includes("Ungültige Herkunft"),
+      );
     } finally {
       setLoginLoading(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    setResendError("");
+    setResendLoading(true);
+    try {
+      const res = await resendVerification(loginEmail);
+      setResendMessage(res.message);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setResendError(
+        msg.includes("429")
+          ? "Zu viele Versuche. Bitte versuche es später erneut."
+          : "Der Versand ist fehlgeschlagen. Bitte versuche es später erneut.",
+      );
+    } finally {
+      setResendLoading(false);
     }
   }
 
@@ -168,6 +199,26 @@ export default function LoginPage() {
             {loginError && (
               <p className="text-sm text-destructive">{loginError}</p>
             )}
+            {loginNeedsVerification &&
+              (resendMessage ? (
+                <p className="text-sm">{resendMessage}</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendLoading}
+                    className="text-sm text-primary underline disabled:opacity-50"
+                  >
+                    {resendLoading
+                      ? "Wird gesendet..."
+                      : "Bestätigungsmail erneut senden"}
+                  </button>
+                  {resendError && (
+                    <p className="text-sm text-destructive">{resendError}</p>
+                  )}
+                </div>
+              ))}
             <Button
               type="submit"
               className="h-11 w-full text-base"

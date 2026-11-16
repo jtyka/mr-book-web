@@ -13,6 +13,7 @@ import {
   authApi,
   type UserDto,
   type RegisterResponse,
+  type ResendVerificationResponse,
 } from "./api";
 
 interface AuthContextValue {
@@ -25,6 +26,7 @@ interface AuthContextValue {
     name: string,
   ) => Promise<RegisterResponse>;
   verifyEmail: (token: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<ResendVerificationResponse>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
 }
@@ -68,6 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }, []);
 
+  // Liefert unabhängig vom Kontostatus eine neutrale Server-Nachricht zurück
+  // (kein Aufschluss über Kontoexistenz).
+  const resendVerification = useCallback(async (email: string) => {
+    return authApi.resendVerification(email);
+  }, []);
+
   const logout = useCallback(async () => {
     await authApi.logout().catch(() => {});
     // Gecachte Daten verwerfen, sonst sähe ein danach im selben Tab
@@ -86,7 +94,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext
-      value={{ user, loading, login, register, verifyEmail, logout, logoutAll }}
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        verifyEmail,
+        resendVerification,
+        logout,
+        logoutAll,
+      }}
     >
       {children}
     </AuthContext>
