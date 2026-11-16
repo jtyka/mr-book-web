@@ -133,6 +133,9 @@ export interface BookDto {
   publisher: PublisherDto | null;
   categories: CategoryDto[];
   readingHistory: ReadingRecordDto[];
+  // Öffentliche Adresse der eigenen Cover-Kopie (Blob-Speicher); wird nur über
+  // die Cover-Endpunkte gesetzt, nie über create/update.
+  coverUrl: string | null;
 }
 
 export interface BookCreateDto {
@@ -161,6 +164,14 @@ export interface IsbnLookupDto {
   language: string | null;
   description: string | null;
   coverUrl: string | null;
+}
+
+// Antwort von POST /api/books/covers/backfill
+export interface CoverBackfillResult {
+  processed: number;
+  found: number;
+  lastId: number | null;
+  remaining: number;
 }
 
 export interface StatsDto {
@@ -209,8 +220,11 @@ interface RequestOptions extends RequestInit {
 
 async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const { noAuthRedirect, ...init } = options ?? {};
+  // Bei FormData darf kein Content-Type gesetzt werden: der Browser ergänzt
+  // ihn selbst inklusive der multipart-Boundary.
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(init?.headers as Record<string, string>),
   };
 
@@ -327,6 +341,31 @@ export const booksApi = {
     request<number>("/api/books", {
       method: "DELETE",
       body: JSON.stringify(ids),
+    }),
+
+  // Eigenes Bild hochladen (bereits im Browser verkleinert, JPEG/PNG/WebP)
+  uploadCover: (id: number, file: Blob) => {
+    const form = new FormData();
+    form.append("file", file, "cover.jpg");
+    return request<BookDto>(`/api/books/${id}/cover`, { method: "PUT", body: form });
+  },
+
+  // Cover aus dem ISBN-Lookup übernehmen (die API lädt und speichert es selbst)
+  importCover: (id: number, sourceUrl: string) =>
+    request<BookDto>(`/api/books/${id}/cover/import`, {
+      method: "POST",
+      body: JSON.stringify({ sourceUrl }),
+    }),
+
+  deleteCover: (id: number) =>
+    request<BookDto>(`/api/books/${id}/cover`, { method: "DELETE" }),
+
+  // Sammelaktion: Cover für Bücher mit ISBN und ohne Cover nachladen
+  // (`dryRun` zählt nur; sonst höchstens 5 Bücher je Aufruf)
+  backfillCovers: (opts: { bookIds?: number[]; afterId?: number; dryRun?: boolean } = {}) =>
+    request<CoverBackfillResult>("/api/books/covers/backfill", {
+      method: "POST",
+      body: JSON.stringify(opts),
     }),
 
   listReadingRecords: (bookId: number) =>

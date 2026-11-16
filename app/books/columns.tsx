@@ -3,6 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { BookDto } from "@/lib/api";
 import { formatReadingDate } from "@/lib/format";
+import { BookCover } from "@/components/book-cover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,14 +46,18 @@ export function createBookColumns({ onEdit, onDelete, onMarkRead }: ColumnAction
           .map((a) => `${a.firstName} ${a.lastName}`)
           .join(", ");
         return (
-          <>
-            <span className="font-medium">{row.original.title}</span>
-            {authors && (
-              <span className="mt-0.5 block text-xs text-muted-foreground md:hidden">
-                {authors}
-              </span>
-            )}
-          </>
+          <div className="flex items-center gap-3">
+            {/* Titel ist dekorativ benachbart, daher leerer Alt-Text */}
+            <BookCover url={row.original.coverUrl} size="sm" alt="" />
+            <div className="min-w-0">
+              <span className="font-medium">{row.original.title}</span>
+              {authors && (
+                <span className="mt-0.5 block text-xs text-muted-foreground md:hidden">
+                  {authors}
+                </span>
+              )}
+            </div>
+          </div>
         );
       },
     },

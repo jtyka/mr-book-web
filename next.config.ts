@@ -26,7 +26,9 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  // Blob-Host: eigene Cover-Kopien (Vercel Blob, öffentlicher Store); blob:
+  // wird für die Vorschau eines frisch gewählten Fotos gebraucht
+  "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
   "font-src 'self' data:",
   `connect-src 'self' ${apiUrl}`,
   "object-src 'none'",

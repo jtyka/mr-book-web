@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RowSelectionState } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { booksApi, categoriesApi, BookDto, BookCreateDto } from "@/lib/api";
+import { ApiError, booksApi, categoriesApi, BookDto, BookCreateDto } from "@/lib/api";
 import { DataTable } from "@/components/data-table";
 import { createBookColumns } from "./columns";
 import { BookForm } from "./book-form";
+import { coverErrorDetail } from "./cover-field";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -26,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2 } from "lucide-react";
+import { ImageDown, Plus, Trash2 } from "lucide-react";
 
 export default function BooksPage() {
   const queryClient = useQueryClient();
@@ -39,6 +40,21 @@ export default function BooksPage() {
   const [deleteBook, setDeleteBook] = useState<BookDto | undefined>();
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<number | null>(null);
+
+  // Sammelaktion „Cover nachladen": confirmTotal = Rückfrage offen, run = läuft
+  const [checkingCovers, setCheckingCovers] = useState(false);
+  const [confirmTotal, setConfirmTotal] = useState<number | null>(null);
+  const [run, setRun] = useState<{ total: number; processed: number; found: number } | null>(null);
+  // Rückmeldung nach „Abbrechen", solange der laufende Aufruf noch zurückkommt
+  const [cancelling, setCancelling] = useState(false);
+  // „Abbrechen" wirkt nach dem laufenden Aufruf; beim Verlassen der Seite
+  // ebenfalls, damit keine Schleife im Hintergrund weiterläuft.
+  const cancelRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      cancelRef.current = true;
+    };
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["books", page, pageSize, categoryFilter],
@@ -108,9 +124,79 @@ export default function BooksPage() {
     onMarkRead: (book) => markReadMutation.mutate(book),
   });
 
+  // Zählt die Bücher mit ISBN und ohne Cover (nur Auswahl, falls vorhanden)
+  async function startCoverBackfill() {
+    setCheckingCovers(true);
+    try {
+      const bookIds = selectedIds.length > 0 ? selectedIds : undefined;
+      const { remaining } = await booksApi.backfillCovers({ bookIds, dryRun: true });
+      if (remaining === 0) {
+        toast.info("Alle Bücher mit ISBN haben bereits ein Cover.");
+      } else {
+        setConfirmTotal(remaining);
+      }
+    } catch (e) {
+      toast.error(coverErrorDetail(e) ?? "Die Cover-Suche konnte nicht gestartet werden.");
+    } finally {
+      setCheckingCovers(false);
+    }
+  }
+
+  async function runCoverBackfill(total: number) {
+    const bookIds = selectedIds.length > 0 ? selectedIds : undefined;
+    cancelRef.current = false;
+    setCancelling(false);
+    setConfirmTotal(null);
+    setRun({ total, processed: 0, found: 0 });
+    let processed = 0;
+    let found = 0;
+    let afterId: number | undefined;
+    let failure: unknown = null;
+    try {
+      while (!cancelRef.current) {
+        let r;
+        try {
+          r = await booksApi.backfillCovers({ bookIds, afterId });
+        } catch (e) {
+          // Rate-Limit mitten im Lauf: Wartezeit abwarten (abbrechbar) und
+          // an derselben Stelle fortsetzen statt den ganzen Lauf zu verwerfen.
+          if (e instanceof ApiError && e.status === 429 && e.retryAfter) {
+            const until = Date.now() + e.retryAfter * 1000;
+            while (!cancelRef.current && Date.now() < until) {
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+            continue;
+          }
+          throw e;
+        }
+        processed += r.processed;
+        found += r.found;
+        setRun({ total, processed, found });
+        // processed === 0 als Notbremse gegen eine Endlosschleife
+        if (r.remaining === 0 || r.lastId == null || r.processed === 0) break;
+        afterId = r.lastId;
+      }
+    } catch (e) {
+      failure = e;
+    }
+    setRun(null);
+    setCancelling(false);
+    invalidate();
+    if (failure) {
+      const detail = coverErrorDetail(failure) ?? (failure as Error).message;
+      toast.error(
+        `Abgebrochen nach ${processed} von ${total} Büchern (${found} Cover gefunden). ${detail}`
+      );
+    } else if (cancelRef.current) {
+      toast.info(`Abgebrochen: ${found} Cover bei ${processed} von ${total} Büchern gefunden.`);
+    } else {
+      toast.success(`Für ${found} von ${total} Büchern ein Cover gefunden.`);
+    }
+  }
+
   async function handleFormSubmit(dto: BookCreateDto) {
     if (editBook) {
-      await updateMutation.mutateAsync({ id: editBook.id, dto });
+      return updateMutation.mutateAsync({ id: editBook.id, dto });
     } else {
       return createMutation.mutateAsync(dto);
     }
@@ -125,7 +211,15 @@ export default function BooksPage() {
             {totalElements} Bücher in der Bibliothek
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            disabled={checkingCovers || run !== null}
+            onClick={startCoverBackfill}
+          >
+            <ImageDown className="h-4 w-4 mr-2" />
+            {checkingCovers ? "Prüfe…" : "Cover nachladen"}
+          </Button>
           {selectedIds.length > 0 && (
             <Button
               variant="destructive"
@@ -206,6 +300,55 @@ export default function BooksPage() {
         onSubmit={handleFormSubmit}
         initial={editBook}
       />
+
+      {/* Cover nachladen: Rückfrage */}
+      <AlertDialog
+        open={confirmTotal !== null}
+        onOpenChange={(o) => !o && setConfirmTotal(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cover nachladen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Für {confirmTotal} Bücher ohne Cover suchen?
+              {selectedIds.length > 0 && " Es werden nur die ausgewählten Bücher berücksichtigt."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmTotal !== null && runCoverBackfill(confirmTotal)}
+            >
+              Suchen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cover nachladen: Fortschritt */}
+      <AlertDialog
+        open={run !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            cancelRef.current = true;
+            setCancelling(true);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {cancelling ? "Wird abgebrochen …" : "Cover werden gesucht …"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {run?.processed ?? 0} von {run?.total ?? 0} · {run?.found ?? 0} Cover gefunden
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>Abbrechen</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Einzeln löschen */}
       <AlertDialog open={!!deleteBook} onOpenChange={(o) => !o && setDeleteBook(undefined)}>

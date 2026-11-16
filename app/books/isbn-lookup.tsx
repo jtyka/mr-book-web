@@ -46,6 +46,8 @@ export interface IsbnApplyPatch {
   description?: string;
   addAuthorIds: number[];
   publisherId?: number;
+  // Adresse des Lookup-Covers; die API lädt und speichert es beim Speichern
+  coverSourceUrl?: string;
 }
 
 interface IsbnLookupProps {
@@ -57,6 +59,9 @@ interface IsbnLookupProps {
   // false, solange Autoren- und Verlagsliste nicht geladen sind: ohne sie
   // gälte jeder Eintrag als „neu" und würde doppelt angelegt.
   listsReady: boolean;
+  // Hat das Buch schon ein Cover (gespeichert oder gewählt)? Dann ist die
+  // Cover-Zeile nicht vorausgewählt.
+  hasCover: boolean;
   onApply: (patch: IsbnApplyPatch) => void;
 }
 
@@ -99,6 +104,7 @@ export function IsbnLookup({
   authors,
   publishers,
   listsReady,
+  hasCover,
   onApply,
 }: IsbnLookupProps) {
   const [loading, setLoading] = useState(false);
@@ -176,6 +182,7 @@ export function IsbnLookup({
           values={values}
           authors={authors}
           publishers={publishers}
+          hasCover={hasCover}
           onApply={onApply}
           onClose={() => setResult(null)}
         />
@@ -195,6 +202,7 @@ function LookupPreview({
   values,
   authors,
   publishers,
+  hasCover,
   onApply,
   onClose,
 }: {
@@ -202,6 +210,7 @@ function LookupPreview({
   values: IsbnLookupFormValues;
   authors: AuthorDto[];
   publishers: PublisherDto[];
+  hasCover: boolean;
   onApply: (patch: IsbnApplyPatch) => void;
   onClose: () => void;
 }) {
@@ -247,6 +256,11 @@ function LookupPreview({
     () => !!data.publisher && !!findPublisherByName(publishers, data.publisher)
   );
 
+  // Cover: nur Hinweis, kein Bild – fremde Hosts sind in der CSP nicht erlaubt.
+  // Ein vorhandenes Cover wird ohne Anhaken nie ersetzt.
+  const coverFound = !!data.coverUrl;
+  const [coverChecked, setCoverChecked] = useState(() => !hasCover);
+
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -280,7 +294,8 @@ function LookupPreview({
   const anySelected =
     scalarRows.some((r) => scalarChecked[r.key]) ||
     authorState.some((a) => a.checked) ||
-    publisherSelected;
+    publisherSelected ||
+    (coverFound && coverChecked);
 
   function updateAuthor(i: number, patch: Partial<AuthorRow>) {
     setAuthorRows((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -371,6 +386,7 @@ function LookupPreview({
       if (r.key === "publishedYear" || r.key === "pageCount") patch[r.key] = Number(r.found);
       else patch[r.key] = r.newText;
     }
+    if (coverFound && coverChecked) patch.coverSourceUrl = data.coverUrl!;
     onApply(patch);
     onClose();
   }
@@ -449,6 +465,26 @@ function LookupPreview({
           );
         })}
 
+        {coverFound && (
+          <li className="flex items-start gap-2 text-sm">
+            <Checkbox
+              className="mt-0.5"
+              aria-label="Cover"
+              checked={coverChecked}
+              onCheckedChange={(v) => setCoverChecked(!!v)}
+            />
+            <div className="min-w-0 flex-1">
+              <span className="text-muted-foreground text-xs">Cover</span>
+              <p>Cover gefunden</p>
+              {hasCover && (
+                <p className="text-muted-foreground text-xs">
+                  Das vorhandene Cover wird nur ersetzt, wenn Du das hier anhakst.
+                </p>
+              )}
+            </div>
+          </li>
+        )}
+
         {data.publisher?.trim() && (
           <li className="flex items-start gap-2 text-sm">
             <Checkbox
@@ -491,6 +527,15 @@ function LookupPreview({
 
       <p className="text-muted-foreground text-xs">
         Quelle: {data.sources.map((s) => SOURCE_LABELS[s] ?? s).join(", ")}
+        {" · "}
+        <a
+          href="https://openlibrary.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          Cover und Buchdaten: Open Library
+        </a>
       </p>
 
       {error && (

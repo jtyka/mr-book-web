@@ -22,6 +22,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { IsbnLookup, IsbnApplyPatch } from "./isbn-lookup";
+import { COVER_UNCHANGED, CoverField, CoverState, coverErrorDetail } from "./cover-field";
 
 interface BookFormProps {
   open: boolean;
@@ -48,7 +49,14 @@ interface BookDraftData {
   isRead: boolean;
   startedParts: DateParts;
   readParts: DateParts;
+  // Cover: nur Adresse aus dem Lookup bzw. „entfernen" – ein gewähltes Foto
+  // lässt sich nicht im Entwurf ablegen, dafür gibt es nur das Flag.
+  // Beides optional: ältere Entwürfe kennen die Felder nicht.
+  cover?: { kind: "lookup"; sourceUrl: string } | { kind: "remove" } | null;
+  coverFileChosen?: boolean;
 }
+
+const MSG_PHOTO_AGAIN = "Das gewählte Foto muss neu ausgewählt werden.";
 
 // Leeres Formular – Vorbelegung, Zurücksetzen und das Auffüllen eines
 // unvollständigen Entwurfs greifen auf dieselbe Definition zu.
@@ -161,6 +169,9 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
   // Entwurf wiederherstellt) hat – steuert zusammen mit isDirty, ob ein
   // Entwurf gesichert werden soll
   const [readStatusTouched, setReadStatusTouched] = useState(false);
+  // Cover-Änderung bis zum Speichern (Foto, Lookup-Adresse, Entfernen)
+  const [cover, setCover] = useState<CoverState>(COVER_UNCHANGED);
+  const [coverNotice, setCoverNotice] = useState<string | null>(null);
 
   // Solange der Dialog offen ist, die Verbindung zur API warm halten – ein
   // langes Formular ist sonst genau die Leerlaufphase, in der die Verbindung
@@ -257,6 +268,8 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
   });
 
   useEffect(() => {
+    setCover(COVER_UNCHANGED);
+    setCoverNotice(null);
     if (initial) {
       reset({
         title: initial.title,
@@ -330,6 +343,10 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
       setValue("authorIds", [...merged], opts);
     }
     if (patch.publisherId !== undefined) setValue("publisherId", patch.publisherId, opts);
+    if (patch.coverSourceUrl !== undefined) {
+      setCover({ kind: "lookup", sourceUrl: patch.coverSourceUrl });
+      setCoverNotice(null);
+    }
   }
 
   function toggleCategory(id: number) {
@@ -345,7 +362,13 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
   // watch() ohne Argument abonniert alle Felder (auch unregistrierte
   // Texteingaben), damit wirklich nichts verloren geht.
   const formValues = watch();
-  const hasUnsavedChanges = isDirty || readStatusTouched;
+  const hasUnsavedChanges = isDirty || readStatusTouched || cover.kind !== "unchanged";
+  // Hat das Buch aktuell ein Cover (gespeichert oder gewählt)? Steuert die
+  // Vorauswahl der Cover-Zeile in der Lookup-Vorschau.
+  const hasCover =
+    cover.kind === "file" ||
+    cover.kind === "lookup" ||
+    (cover.kind === "unchanged" && !!initial?.coverUrl);
 
   // Entwurf debounced sichern, solange der Dialog offen ist und tatsächlich
   // etwas verändert wurde. Ein unangetastet geöffnetes Formular legt keinen
@@ -361,6 +384,13 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
         isRead,
         startedParts,
         readParts,
+        cover:
+          cover.kind === "lookup"
+            ? { kind: "lookup", sourceUrl: cover.sourceUrl }
+            : cover.kind === "remove"
+              ? { kind: "remove" }
+              : null,
+        coverFileChosen: cover.kind === "file",
       });
     }, 500);
     return () => clearTimeout(timer);
@@ -373,6 +403,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     isRead,
     startedParts,
     readParts,
+    cover,
   ]);
 
   function handleRestoreDraft() {
@@ -387,6 +418,16 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
       setStartedParts(data.startedParts ?? EMPTY_PARTS);
       setReadParts(data.readParts ?? EMPTY_PARTS);
       setReadStatusTouched(true);
+      // Cover defensiv: nur wohlgeformte Werte übernehmen
+      const c = data.cover;
+      if (c?.kind === "lookup" && typeof c.sourceUrl === "string" && c.sourceUrl) {
+        setCover({ kind: "lookup", sourceUrl: c.sourceUrl });
+      } else if (c?.kind === "remove") {
+        setCover({ kind: "remove" });
+      } else {
+        setCover(COVER_UNCHANGED);
+      }
+      setCoverNotice(data.coverFileChosen ? MSG_PHOTO_AGAIN : null);
       // verhindert, dass ein später eintreffendes Refetch der Reading-Records
       // die gerade wiederhergestellten Werte sofort wieder überschreibt
       readStateInitialized.current = true;
@@ -434,10 +475,32 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
         );
       }
     }
+    // Cover erst nach dem Buch (braucht dessen ID); scheitert nur das Cover,
+    // bleibt das Buch gespeichert.
+    let coverFailed = false;
+    const bookId = initial?.id ?? created?.id;
+    const hadCover = !!initial?.coverUrl;
+    if (bookId != null && (cover.kind !== "remove" || hadCover) && cover.kind !== "unchanged") {
+      try {
+        if (cover.kind === "file") await booksApi.uploadCover(bookId, cover.blob);
+        else if (cover.kind === "lookup") await booksApi.importCover(bookId, cover.sourceUrl);
+        else await booksApi.deleteCover(bookId);
+      } catch (e) {
+        coverFailed = true;
+        toast.error("Buch gespeichert, aber das Cover konnte nicht gespeichert werden.", {
+          description: coverErrorDetail(e, cover.kind === "lookup") ?? undefined,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["books"] });
+    }
     // Der Entwurf wird nur verworfen, wenn wirklich alles gespeichert ist.
-    // Scheitert der Lesestatus-Record, bleibt er als Rettungsnetz liegen –
-    // genau diese Angaben wären sonst verloren.
-    if (!readingRecordFailed) clearDraft(draftKey);
+    // Scheitert der Lesestatus-Record oder das Cover, bleibt er als
+    // Rettungsnetz liegen – genau diese Angaben wären sonst verloren.
+    // Ausnahme: Bei einem NEU angelegten Buch wird der Entwurf trotz
+    // Cover-Fehler verworfen – er läge sonst unter dem Schlüssel „neues Buch"
+    // und würde beim Wiederherstellen dasselbe Buch ein zweites Mal anlegen.
+    const coverKeepsDraft = coverFailed && !!initial;
+    if (!readingRecordFailed && !coverKeepsDraft) clearDraft(draftKey);
   }
 
   return (
@@ -455,6 +518,9 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
                 Entwurf vom {new Date(draftBanner.savedAt).toLocaleString("de-DE")}.
                 Möchtest Du ihn wiederherstellen oder verwerfen?
               </p>
+              {draftBanner.data.coverFileChosen && (
+                <p className="mt-1">{MSG_PHOTO_AGAIN}</p>
+              )}
               <div className="flex gap-2 mt-2">
                 <Button type="button" size="sm" onClick={handleRestoreDraft}>
                   Wiederherstellen
@@ -469,6 +535,17 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
 
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <CoverField
+              currentUrl={initial?.coverUrl ?? null}
+              value={cover}
+              onChange={(next) => {
+                setCover(next);
+                setCoverNotice(null);
+              }}
+              notice={coverNotice}
+              disabled={isSubmitting}
+            />
+
             {/* key: beim Schließen/Wechsel des Buchs verfällt die Vorschau */}
             <IsbnLookup
               key={`${open}:${initial?.id ?? "new"}`}
@@ -486,6 +563,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               authors={authors}
               publishers={publishers}
               listsReady={authorsLoaded && publishersLoaded}
+              hasCover={hasCover}
               onApply={applyLookup}
             />
 
