@@ -53,7 +53,7 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Kategorien</h1>
           <p className="text-muted-foreground text-sm mt-1">{flat.length} Kategorien gesamt</p>
@@ -132,25 +132,29 @@ function CategoryNode({
   return (
     <div>
       <div
-        className="flex items-center gap-2 py-2 px-3 rounded-md hover:bg-muted/50 group"
-        style={{ paddingLeft: `${depth * 24 + 12}px` }}
+        className="flex items-center gap-2 py-2 px-3 pl-[calc(var(--depth)*12px+12px)] md:pl-[calc(var(--depth)*24px+12px)] rounded-md hover:bg-muted/50 group"
+        style={{ "--depth": depth } as import("react").CSSProperties}
       >
         {hasChildren ? (
-          <button onClick={() => setExpanded(!expanded)} className="text-muted-foreground">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            aria-label={expanded ? "Zuklappen" : "Aufklappen"}
+            className="shrink-0 -m-2 p-2 text-muted-foreground md:m-0 md:p-0"
+          >
             <ChevronRight
               className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`}
             />
           </button>
         ) : (
-          <span className="w-4 h-4 inline-block" />
+          <span className="w-4 h-4 inline-block shrink-0" />
         )}
-        <span className="flex-1 font-medium">{node.name}</span>
-        {depth === 0 && <Badge variant="outline" className="text-xs">Hauptkategorie</Badge>}
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="min-w-0 flex-1 break-words font-medium">{node.name}</span>
+        {depth === 0 && <Badge variant="outline" className="hidden shrink-0 text-xs sm:inline-flex">Hauptkategorie</Badge>}
+        <div className="flex gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-10 w-10 md:h-7 md:w-7"
             onClick={() => onEdit(node)}
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -158,7 +162,7 @@ function CategoryNode({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-destructive hover:text-destructive"
+            className="h-10 w-10 md:h-7 md:w-7 text-destructive hover:text-destructive"
             onClick={() => onDelete(node)}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -230,7 +234,7 @@ function CategoryForm({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{initial ? "Kategorie bearbeiten" : "Neue Kategorie"}</DialogTitle>
         </DialogHeader>

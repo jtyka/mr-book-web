@@ -74,7 +74,7 @@ function VerifyInner() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-6">
       <div className="w-full max-w-sm space-y-6 text-center">
         <div className="flex justify-center">
           <Library className="h-10 w-10 text-primary" />

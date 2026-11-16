@@ -145,9 +145,10 @@ export function IsbnLookup({
   const invalidHint = !valid && complete ? MSG_INVALID : null;
 
   return (
-    <div className="col-span-2 space-y-2">
-      <div className="flex items-end gap-2">
-        <div className="flex-1 space-y-1">
+    <div className="sm:col-span-2 space-y-2">
+      {/* mobil Button unter dem Feld, sonst wird eine ISBN-13 abgeschnitten */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="min-w-0 space-y-1 sm:flex-1">
           <Label htmlFor="isbn">ISBN</Label>
           <Input id="isbn" {...isbnInput} placeholder="978-…" />
         </div>
@@ -426,7 +427,7 @@ function LookupPreview({
                   </span>
                 </p>
                 {!knownAtStart[i] && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <Input
                       aria-label="Vorname"
                       placeholder="Vorname"

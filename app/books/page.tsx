@@ -118,7 +118,7 @@ export default function BooksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Bücher</h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -142,7 +142,7 @@ export default function BooksPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Select
           value={categoryFilter?.toString() ?? "all"}
           onValueChange={(v) => {
@@ -151,7 +151,7 @@ export default function BooksPage() {
             setRowSelection({});
           }}
         >
-          <SelectTrigger className="w-64">
+          <SelectTrigger className="w-64 max-w-full">
             <SelectValue placeholder="Alle Kategorien">
               {categoryFilter != null
                 ? (() => {

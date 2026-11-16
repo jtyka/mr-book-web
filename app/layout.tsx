@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -18,6 +18,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "mr-book",
   description: "Persönliche Bücherverwaltung",
+};
+
+// Zoom bleibt möglich (kein maximumScale/userScalable). Die App hat nur ein
+// helles Thema; colorScheme "light" soll automatisches Umfärben verhindern.
+// Die Bildschirmtastatur verkleinert den Inhalt, statt ihn zu überdecken.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "light",
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

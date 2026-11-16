@@ -442,7 +442,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{initial ? "Buch bearbeiten" : "Neues Buch"}</DialogTitle>
         </DialogHeader>
@@ -468,7 +468,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
         )}
 
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* key: beim Schließen/Wechsel des Buchs verfällt die Vorschau */}
             <IsbnLookup
               key={`${open}:${initial?.id ?? "new"}`}
@@ -489,7 +489,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               onApply={applyLookup}
             />
 
-            <div className="col-span-2 space-y-1">
+            <div className="sm:col-span-2 space-y-1">
               <Label htmlFor="title">Titel *</Label>
               <Input id="title" {...register("title", { required: true })} />
             </div>
@@ -524,7 +524,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               />
             </div>
 
-            <div className="col-span-2 space-y-1">
+            <div className="sm:col-span-2 space-y-1">
               <Label>Verlag</Label>
               <Select
                 value={watch("publisherId")?.toString() ?? "none"}
@@ -548,7 +548,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               </Select>
             </div>
 
-            <div className="col-span-2 space-y-1">
+            <div className="sm:col-span-2 space-y-1">
               <Label>Kategorien</Label>
               <div className="flex flex-wrap gap-2 border border-border rounded-md p-2 min-h-10">
                 {(categories ?? []).map((c) => {
@@ -577,7 +577,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               </div>
             </div>
 
-            <div className="col-span-2 space-y-1">
+            <div className="sm:col-span-2 space-y-1">
               <Label>Autoren</Label>
               <div className="flex flex-wrap gap-2 border border-border rounded-md p-2 min-h-10">
                 {authors.map((a) => {
@@ -605,27 +605,27 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               </div>
             </div>
 
-            <div className="col-span-2 space-y-1">
+            <div className="sm:col-span-2 space-y-1">
               <Label htmlFor="description">Beschreibung</Label>
               <textarea
                 id="description"
                 {...register("description")}
                 rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
             </div>
 
-            <div className="col-span-2 space-y-1">
+            <div className="sm:col-span-2 space-y-1">
               <Label htmlFor="review">Rezension</Label>
               <textarea
                 id="review"
                 {...register("review")}
                 rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
             </div>
 
-            <div className="col-span-2 space-y-2">
+            <div className="sm:col-span-2 space-y-2">
               <Label>Lesestatus</Label>
               <div className="border border-border rounded-md p-3 space-y-3">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">

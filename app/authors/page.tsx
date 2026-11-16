@@ -79,17 +79,19 @@ export default function AuthorsPage() {
     {
       id: "name",
       header: "Name",
+      meta: { className: "whitespace-normal md:whitespace-nowrap" },
       cell: ({ row }) => (
         <span className="font-medium">
           {row.original.firstName} {row.original.lastName}
         </span>
       ),
     },
-    { accessorKey: "nationality", header: "Nationalität", cell: ({ row }) => row.original.nationality ?? "–" },
-    { accessorKey: "birthDate", header: "Geburtsdatum", cell: ({ row }) => row.original.birthDate ? row.original.birthDate.slice(0, 10) : "–" },
+    { accessorKey: "nationality", header: "Nationalität", meta: { className: "whitespace-normal md:whitespace-nowrap" }, cell: ({ row }) => row.original.nationality ?? "–" },
+    { accessorKey: "birthDate", header: "Geburtsdatum", meta: { className: "hidden md:table-cell" }, cell: ({ row }) => row.original.birthDate ? row.original.birthDate.slice(0, 10) : "–" },
     {
       accessorKey: "website",
       header: "Webseite",
+      meta: { className: "hidden md:table-cell" },
       cell: ({ row }) =>
         row.original.website ? (
           <a href={row.original.website} target="_blank" rel="noopener noreferrer" className="text-primary underline">
@@ -104,7 +106,7 @@ export default function AuthorsPage() {
       header: "",
       cell: ({ row }) => (
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8" />}>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-10 w-10 md:h-8 md:w-8" />}>
               <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -122,7 +124,7 @@ export default function AuthorsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Autoren</h1>
           <p className="text-muted-foreground text-sm mt-1">{data?.totalElements ?? 0} Autoren</p>
@@ -198,7 +200,7 @@ function AuthorForm({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{initial ? "Autor bearbeiten" : "Neuer Autor"}</DialogTitle>
         </DialogHeader>
@@ -213,7 +215,7 @@ function AuthorForm({
           })}
           className="space-y-4"
         >
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Vorname *</Label>
               <Input {...register("firstName", { required: true })} />

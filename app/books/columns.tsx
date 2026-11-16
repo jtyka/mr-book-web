@@ -39,24 +39,40 @@ export function createBookColumns({ onEdit, onDelete, onMarkRead }: ColumnAction
     {
       accessorKey: "title",
       header: "Titel",
-      cell: ({ row }) => (
-        <span className="font-medium">{row.original.title}</span>
-      ),
+      meta: { className: "whitespace-normal md:whitespace-nowrap" },
+      cell: ({ row }) => {
+        const authors = row.original.authors
+          .map((a) => `${a.firstName} ${a.lastName}`)
+          .join(", ");
+        return (
+          <>
+            <span className="font-medium">{row.original.title}</span>
+            {authors && (
+              <span className="mt-0.5 block text-xs text-muted-foreground md:hidden">
+                {authors}
+              </span>
+            )}
+          </>
+        );
+      },
     },
     {
       id: "authors",
       header: "Autoren",
+      meta: { className: "hidden md:table-cell" },
       cell: ({ row }) =>
         row.original.authors.map((a) => `${a.firstName} ${a.lastName}`).join(", ") || "–",
     },
     {
       accessorKey: "publishedYear",
       header: "Jahr",
+      meta: { className: "hidden md:table-cell" },
       cell: ({ row }) => row.original.publishedYear ?? "–",
     },
     {
       id: "categories",
       header: "Kategorien",
+      meta: { className: "hidden md:table-cell" },
       cell: ({ row }) =>
         row.original.categories.length > 0 ? (
           <div className="flex flex-wrap gap-1">
@@ -71,6 +87,7 @@ export function createBookColumns({ onEdit, onDelete, onMarkRead }: ColumnAction
     {
       accessorKey: "rating",
       header: "Bewertung",
+      meta: { className: "hidden md:table-cell" },
       cell: ({ row }) =>
         row.original.rating != null ? (
           <span className="font-medium">{row.original.rating}/10</span>
@@ -89,7 +106,7 @@ export function createBookColumns({ onEdit, onDelete, onMarkRead }: ColumnAction
           .sort((a, b) => (a.readAt! < b.readAt! ? 1 : -1))
           .at(0);
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <Badge variant="default">
               {records.length > 1 ? `${records.length}×` : "Ja"}
             </Badge>
@@ -107,7 +124,7 @@ export function createBookColumns({ onEdit, onDelete, onMarkRead }: ColumnAction
       header: "",
       cell: ({ row }) => (
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8" />}>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-10 w-10 md:h-8 md:w-8" />}>
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

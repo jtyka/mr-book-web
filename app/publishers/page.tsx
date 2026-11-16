@@ -49,11 +49,12 @@ export default function PublishersPage() {
   });
 
   const columns: ColumnDef<PublisherDto>[] = [
-    { accessorKey: "name", header: "Name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
-    { accessorKey: "country", header: "Land", cell: ({ row }) => row.original.country ?? "–" },
+    { accessorKey: "name", header: "Name", meta: { className: "whitespace-normal md:whitespace-nowrap" }, cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+    { accessorKey: "country", header: "Land", meta: { className: "whitespace-normal md:whitespace-nowrap" }, cell: ({ row }) => row.original.country ?? "–" },
     {
       accessorKey: "website",
       header: "Website",
+      meta: { className: "hidden md:table-cell" },
       cell: ({ row }) =>
         row.original.website ? (
           <a href={row.original.website} target="_blank" rel="noopener noreferrer" className="text-primary underline">
@@ -66,7 +67,7 @@ export default function PublishersPage() {
       header: "",
       cell: ({ row }) => (
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8" />}>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-10 w-10 md:h-8 md:w-8" />}>
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -84,7 +85,7 @@ export default function PublishersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Verlage</h1>
           <p className="text-muted-foreground text-sm mt-1">{data?.totalElements ?? 0} Verlage</p>
@@ -151,7 +152,7 @@ function PublisherForm({
   }, [open, initial, reset]);
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{initial ? "Verlag bearbeiten" : "Neuer Verlag"}</DialogTitle>
         </DialogHeader>
@@ -159,7 +160,7 @@ function PublisherForm({
           <div className="space-y-1"><Label>Name *</Label><Input {...register("name", { required: true })} /></div>
           <div className="space-y-1"><Label>Land</Label><Input {...register("country")} /></div>
           <div className="space-y-1"><Label>Website</Label><Input {...register("website")} type="url" placeholder="https://…" /></div>
-          <div className="space-y-1"><Label>Adresse</Label><textarea {...register("address")} rows={2} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" placeholder="Straße, PLZ Ort" /></div>
+          <div className="space-y-1"><Label>Adresse</Label><textarea {...register("address")} rows={2} className="w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" placeholder="Straße, PLZ Ort" /></div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Abbrechen</Button>
             <Button type="submit" disabled={isSubmitting}>Speichern</Button>

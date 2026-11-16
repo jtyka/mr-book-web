@@ -5,6 +5,7 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
+  RowData,
   RowSelectionState,
   SortingState,
   getSortedRowModel,
@@ -21,6 +22,15 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { useState } from "react";
+
+declare module "@tanstack/react-table" {
+  // Zusätzliche Klassen für Kopf- und Datenzellen einer Spalte, z. B.
+  // "hidden md:table-cell", um die Spalte auf schmalen Displays auszublenden.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    className?: string;
+  }
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -79,13 +89,13 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border border-border overflow-hidden">
+      <div className="rounded-md border border-border overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead key={header.id} className={header.column.columnDef.meta?.className}>
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -124,7 +134,7 @@ export function DataTable<TData, TValue>({
                   className="hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -139,7 +149,7 @@ export function DataTable<TData, TValue>({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm">
+      <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="text-muted-foreground">
           {totalElements} Einträge gesamt
           {Object.keys(selectedRowIds ?? {}).length > 0 && (
@@ -149,14 +159,14 @@ export function DataTable<TData, TValue>({
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Pro Seite</span>
             <Select
               value={String(pageSize)}
               onValueChange={(v) => onPageSizeChange(Number(v))}
             >
-              <SelectTrigger className="w-20 h-8">
+              <SelectTrigger className="w-20 data-[size=default]:h-10 md:data-[size=default]:h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -173,7 +183,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-10 w-10 md:h-8 md:w-8"
               onClick={() => onPageChange(0)}
               disabled={page === 0}
             >
@@ -182,7 +192,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-10 w-10 md:h-8 md:w-8"
               onClick={() => onPageChange(page - 1)}
               disabled={page === 0}
             >
@@ -194,7 +204,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-10 w-10 md:h-8 md:w-8"
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages - 1}
             >
@@ -203,7 +213,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-10 w-10 md:h-8 md:w-8"
               onClick={() => onPageChange(totalPages - 1)}
               disabled={page >= totalPages - 1}
             >
