@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -181,6 +182,14 @@ export default function LoginPage() {
                 onChange={(e) => setLoginPassword(e.target.value)}
                 className="block w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-base outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/50"
               />
+              <div className="text-right">
+                <Link
+                  href="/reset-password"
+                  className="inline-block py-1 text-sm text-primary underline"
+                >
+                  Passwort vergessen?
+                </Link>
+              </div>
             </div>
             <div className="flex items-start gap-2">
               <Checkbox

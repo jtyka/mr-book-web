@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
 // Ohne Anmeldung erreichbare Seiten.
-const PUBLIC_PATHS = ["/login", "/verify"];
+const PUBLIC_PATHS = ["/login", "/verify", "/reset-password"];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();

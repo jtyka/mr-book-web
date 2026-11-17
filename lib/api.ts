@@ -47,6 +47,12 @@ export interface ResendVerificationResponse {
   message: string;
 }
 
+export interface ForgotPasswordResponse {
+  message: string;
+  // Nur lokal gesetzt (NODE_ENV !== "production" in der API), wenn das Konto existiert.
+  devResetUrl?: string;
+}
+
 export interface PagedResponse<T> {
   content: T[];
   totalElements: number;
@@ -209,6 +215,20 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+// Liest das Feld `error` aus der JSON-Antwort eines ApiError (Meldung
+// `API <status>: {"error":"…"}`); null, wenn keines vorhanden ist.
+export function apiErrorText(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const match = err.message.match(/^API \d+: ([\s\S]*)$/);
+  if (!match) return null;
+  try {
+    const body = JSON.parse(match[1]) as { error?: unknown };
+    return typeof body.error === "string" ? body.error : null;
+  } catch {
+    return null;
   }
 }
 
@@ -497,6 +517,29 @@ export const authApi = {
     request<ResendVerificationResponse>("/api/auth/verify/resend", {
       method: "POST",
       body: JSON.stringify({ email }),
+    }),
+
+  // Passwort vergessen: fordert einen Link an (neutrale Antwort, egal ob es das
+  // Konto gibt), prüft den Link und setzt das neue Passwort.
+  forgotPassword: (email: string) =>
+    request<ForgotPasswordResponse>("/api/auth/password/forgot", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+      noAuthRedirect: true,
+    }),
+
+  checkResetToken: (token: string) =>
+    request<void>("/api/auth/password/check", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+      noAuthRedirect: true,
+    }),
+
+  resetPassword: (token: string, password: string) =>
+    request<void>("/api/auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+      noAuthRedirect: true,
     }),
 
   logout: () =>
