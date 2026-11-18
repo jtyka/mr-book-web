@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RowSelectionState } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { ApiError, booksApi, categoriesApi, BookDto, BookCreateDto } from "@/lib/api";
+import { ApiError, booksApi, categoriesApi, BookDto, BookCreateDto, ReadingStatus } from "@/lib/api";
 import { DataTable } from "@/components/data-table";
 import { createBookColumns } from "./columns";
 import { BookForm } from "./book-form";
@@ -29,6 +29,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ImageDown, Plus, Trash2 } from "lucide-react";
 
+const STATUS_LABELS: Record<ReadingStatus, string> = {
+  unread: "Ungelesen",
+  reading: "Wird gelesen",
+  read: "Gelesen",
+};
+
 export default function BooksPage() {
   const queryClient = useQueryClient();
 
@@ -40,6 +46,7 @@ export default function BooksPage() {
   const [deleteBook, setDeleteBook] = useState<BookDto | undefined>();
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<ReadingStatus | null>(null);
 
   // Sammelaktion „Cover nachladen": confirmTotal = Rückfrage offen, run = läuft
   const [checkingCovers, setCheckingCovers] = useState(false);
@@ -57,8 +64,9 @@ export default function BooksPage() {
   }, []);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["books", page, pageSize, categoryFilter],
-    queryFn: () => booksApi.list(page, pageSize, "title", "asc", categoryFilter),
+    queryKey: ["books", page, pageSize, categoryFilter, statusFilter],
+    queryFn: () =>
+      booksApi.list(page, pageSize, "title", "asc", categoryFilter, statusFilter),
   });
 
   const { data: categories } = useQuery({
@@ -92,8 +100,18 @@ export default function BooksPage() {
   });
 
   const markReadMutation = useMutation({
-    mutationFn: (book: BookDto) =>
-      booksApi.addReadingRecord(book.id, { startedAt: null, readAt: null }),
+    mutationFn: (book: BookDto) => {
+      // Laufender Eintrag („Wird gelesen“): abschließen statt zweiten anzulegen
+      const open = book.readingHistory.find((r) => !r.finished);
+      if (open) {
+        return booksApi.updateReadingRecord(book.id, open.id, { finished: true });
+      }
+      return booksApi.addReadingRecord(book.id, {
+        startedAt: null,
+        readAt: null,
+        finished: true,
+      });
+    },
     onSuccess: (_, book) => {
       toast.success(`„${book.title}" als gelesen markiert`);
       invalidate();
@@ -265,12 +283,33 @@ export default function BooksPage() {
             ))}
           </SelectContent>
         </Select>
-        {categoryFilter != null && (
+        <Select
+          value={statusFilter ?? "all"}
+          onValueChange={(v) => {
+            setStatusFilter(v === "all" ? null : (v as ReadingStatus));
+            setPage(0);
+            setRowSelection({});
+          }}
+        >
+          <SelectTrigger className="w-48 max-w-full" aria-label="Lesestatus">
+            <SelectValue placeholder="Lesestatus">
+              {statusFilter ? STATUS_LABELS[statusFilter] : "Lesestatus: Alle"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Lesestatus: Alle</SelectItem>
+            <SelectItem value="unread">Ungelesen</SelectItem>
+            <SelectItem value="reading">Wird gelesen</SelectItem>
+            <SelectItem value="read">Gelesen</SelectItem>
+          </SelectContent>
+        </Select>
+        {(categoryFilter != null || statusFilter != null) && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               setCategoryFilter(null);
+              setStatusFilter(null);
               setPage(0);
               setRowSelection({});
             }}

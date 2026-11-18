@@ -116,6 +116,8 @@ export interface ReadingRecordDto {
   startedAtPrecision: DatePrecision | null;
   readAt: string | null;
   readAtPrecision: DatePrecision | null;
+  // false = Buch wird gerade gelesen (begonnen, nicht abgeschlossen)
+  finished: boolean;
 }
 
 export interface ReadingRecordCreateDto {
@@ -123,7 +125,17 @@ export interface ReadingRecordCreateDto {
   startedAtPrecision?: DatePrecision | null;
   readAt: string | null;
   readAtPrecision?: DatePrecision | null;
+  // Default der API: true; false darf kein readAt haben
+  finished?: boolean;
 }
+
+export interface ReadingRecordPatchDto {
+  finished?: boolean;
+  readAt?: string | null;
+  readAtPrecision?: DatePrecision | null;
+}
+
+export type ReadingStatus = "unread" | "reading" | "read";
 
 export interface BookDto {
   id: number;
@@ -187,6 +199,7 @@ export interface StatsDto {
   totalCategories: number;
   totalReadingRecords: number;
   booksRead: number;
+  booksReading: number;
   averageRating: number | null;
   averagePageCount: number | null;
   booksByLanguage: CountEntry[];
@@ -333,12 +346,13 @@ export const booksApi = {
     size = 20,
     sort = "title",
     dir: "asc" | "desc" = "asc",
-    categoryId?: number | null
+    categoryId?: number | null,
+    status?: ReadingStatus | null
   ) =>
     request<PagedResponse<BookDto>>(
       `/api/books?${pagedParams(page, size, sort, dir)}${
         categoryId != null ? `&categoryId=${categoryId}` : ""
-      }`
+      }${status ? `&status=${status}` : ""}`
     ),
 
   get: (id: number) => request<BookDto>(`/api/books/${id}`),
@@ -394,6 +408,12 @@ export const booksApi = {
   addReadingRecord: (bookId: number, dto: ReadingRecordCreateDto) =>
     request<ReadingRecordDto>(`/api/books/${bookId}/reading-records`, {
       method: "POST",
+      body: JSON.stringify(dto),
+    }),
+
+  updateReadingRecord: (bookId: number, recordId: number, dto: ReadingRecordPatchDto) =>
+    request<ReadingRecordDto>(`/api/books/${bookId}/reading-records/${recordId}`, {
+      method: "PATCH",
       body: JSON.stringify(dto),
     }),
 

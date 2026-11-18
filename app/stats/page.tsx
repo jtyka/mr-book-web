@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { statsApi, CountEntry } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Users, Building2, Tag, BookMarked, Star, FileText, BarChart2, ChevronDown, ChevronRight } from "lucide-react";
+import { BookOpen, Users, Building2, Tag, BookMarked, BookOpenText, Star, FileText, BarChart2, ChevronDown, ChevronRight } from "lucide-react";
 
 export default function StatsPage() {
   const { data: stats, isLoading } = useQuery({
@@ -31,6 +31,7 @@ export default function StatsPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={BookOpen} label="Bücher gesamt" value={stats.totalBooks} />
         <StatCard icon={BookMarked} label="Gelesen" value={stats.booksRead} />
+        <StatCard icon={BookOpenText} label="Wird gelesen" value={stats.booksReading} />
         <StatCard icon={Users} label="Autoren" value={stats.totalAuthors} />
         <StatCard icon={Building2} label="Verlage" value={stats.totalPublishers} />
         <StatCard icon={Tag} label="Kategorien" value={stats.totalCategories} />

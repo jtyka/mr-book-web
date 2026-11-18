@@ -201,23 +201,36 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     queryClient.invalidateQueries({ queryKey: ["books"] });
   };
 
+  // Gewünscht ist ein Eintrag, wenn das Buch gelesen ist oder ein Beginn
+  // (mind. Jahr) angegeben wurde – Beginn allein bedeutet „Wird gelesen“.
+  const hasDesiredRecord = isRead || !!startedParts.year;
+
   // Gleicht den Lesestatus beim Speichern mit der DB ab: genau ein Eintrag,
-  // wenn "gelesen", sonst keiner. Ohne Änderung bleibt alles unangetastet
+  // wenn "gelesen" oder "begonnen" (Wird gelesen), sonst keiner. Ohne Änderung bleibt alles unangetastet
   // (auch eventuelle Mehrfacheinträge).
   async function syncReadingRecord() {
     if (!initial) return;
     const existing = readingRecords ?? initial.readingHistory;
     const started = toDateAndPrecision(startedParts);
     const read = toDateAndPrecision(readParts);
-    const desired = isRead
-      ? { s: started.date, sp: started.precision, r: read.date, rp: read.precision }
-      : null;
-    const current = existing[0]
+    const desired = hasDesiredRecord
       ? {
-          s: existing[0].startedAt?.slice(0, 10) ?? null,
-          sp: existing[0].startedAt ? existing[0].startedAtPrecision ?? "DAY" : null,
-          r: existing[0].readAt?.slice(0, 10) ?? null,
-          rp: existing[0].readAt ? existing[0].readAtPrecision ?? "DAY" : null,
+          s: started.date,
+          sp: started.precision,
+          r: isRead ? read.date : null,
+          rp: isRead ? read.precision : null,
+          f: isRead,
+        }
+      : null;
+    // Referenz ist der Eintrag, der den Buchstatus bestimmt (abgeschlossen vor offen)
+    const ref = existing.find((r) => r.finished) ?? existing[0];
+    const current = ref
+      ? {
+          s: ref.startedAt?.slice(0, 10) ?? null,
+          sp: ref.startedAt ? ref.startedAtPrecision ?? "DAY" : null,
+          r: ref.readAt?.slice(0, 10) ?? null,
+          rp: ref.readAt ? ref.readAtPrecision ?? "DAY" : null,
+          f: ref.finished,
         }
       : null;
     if (JSON.stringify(desired) === JSON.stringify(current)) return;
@@ -229,8 +242,9 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
       await booksApi.addReadingRecord(initial.id, {
         startedAt: started.date,
         startedAtPrecision: started.precision,
-        readAt: read.date,
-        readAtPrecision: read.precision,
+        readAt: isRead ? read.date : null,
+        readAtPrecision: isRead ? read.precision : null,
+        finished: isRead,
       });
     }
     invalidateRecords();
@@ -299,10 +313,10 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
     }
     if (readStateInitialized.current) return;
     if (initial && !readingRecords) return; // auf geladene Einträge warten
-    const rec = readingRecords?.[0];
-    setIsRead(!!rec);
+    const rec = readingRecords?.find((r) => r.finished) ?? readingRecords?.[0];
+    setIsRead(!!rec?.finished);
     setStartedParts(rec ? toParts(rec.startedAt, rec.startedAtPrecision) : EMPTY_PARTS);
-    setReadParts(rec ? toParts(rec.readAt, rec.readAtPrecision) : EMPTY_PARTS);
+    setReadParts(rec?.finished ? toParts(rec.readAt, rec.readAtPrecision) : EMPTY_PARTS);
     setReadStatusTouched(false);
     readStateInitialized.current = true;
   }, [open, initial, readingRecords]);
@@ -457,15 +471,16 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
       rating: data.rating ? Number(data.rating) : null,
     });
     let readingRecordFailed = false;
-    if (!initial && created && isRead) {
+    if (!initial && created && hasDesiredRecord) {
       const started = toDateAndPrecision(startedParts);
       const read = toDateAndPrecision(readParts);
       try {
         await booksApi.addReadingRecord(created.id, {
           startedAt: started.date,
           startedAtPrecision: started.precision,
-          readAt: read.date,
-          readAtPrecision: read.precision,
+          readAt: isRead ? read.date : null,
+          readAtPrecision: isRead ? read.precision : null,
+          finished: isRead,
         });
         queryClient.invalidateQueries({ queryKey: ["books"] });
       } catch (e) {
@@ -712,40 +727,37 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
                     onCheckedChange={(v) => {
                       setIsRead(!!v);
                       setReadStatusTouched(true);
-                      if (!v) {
-                        setStartedParts(EMPTY_PARTS);
-                        setReadParts(EMPTY_PARTS);
-                      }
+                      // Abwählen leert nur „Gelesen am“; „Begonnen am“ bleibt
+                      if (!v) setReadParts(EMPTY_PARTS);
                     }}
                   />
                   Gelesen
                 </label>
-                {isRead && (
-                  <>
-                    <div className="flex flex-wrap gap-4">
-                      <DatePartsInput
-                        label="Begonnen am"
-                        value={startedParts}
-                        onChange={(v) => {
-                          setStartedParts(v);
-                          setReadStatusTouched(true);
-                        }}
-                      />
-                      <DatePartsInput
-                        label="Gelesen am"
-                        value={readParts}
-                        onChange={(v) => {
-                          setReadParts(v);
-                          setReadStatusTouched(true);
-                        }}
-                      />
-                    </div>
-                    <p className="text-muted-foreground text-xs">
-                      Daten optional – fülle nur aus, was Du weißt. Übernommen
-                      wird alles beim Speichern.
-                    </p>
-                  </>
-                )}
+                <div className="flex flex-wrap gap-4">
+                  <DatePartsInput
+                    label="Begonnen am"
+                    value={startedParts}
+                    onChange={(v) => {
+                      setStartedParts(v);
+                      setReadStatusTouched(true);
+                    }}
+                  />
+                  {isRead && (
+                    <DatePartsInput
+                      label="Gelesen am"
+                      value={readParts}
+                      onChange={(v) => {
+                        setReadParts(v);
+                        setReadStatusTouched(true);
+                      }}
+                    />
+                  )}
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  Daten optional – fülle nur aus, was Du weißt. „Begonnen am“
+                  allein bedeutet „Wird gelesen“. Übernommen wird alles beim
+                  Speichern.
+                </p>
               </div>
             </div>
           </div>

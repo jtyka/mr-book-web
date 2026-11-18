@@ -105,15 +105,30 @@ export function createBookColumns({ onEdit, onDelete, onMarkRead }: ColumnAction
       header: "Gelesen",
       cell: ({ row }) => {
         const records = row.original.readingHistory;
-        if (records.length === 0) return <Badge variant="outline">Nein</Badge>;
-        const latest = records
+        const finishedRecords = records.filter((r) => r.finished);
+        if (finishedRecords.length === 0) {
+          // Kein abgeschlossener Eintrag: laufender Eintrag = „Wird gelesen“
+          const reading = records.find((r) => r.startedAt) ?? records.at(0);
+          if (!reading) return <Badge variant="outline">Nein</Badge>;
+          return (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <Badge variant="secondary">Wird gelesen</Badge>
+              {reading.startedAt && (
+                <span className="text-muted-foreground text-xs">
+                  seit {formatReadingDate(reading.startedAt, reading.startedAtPrecision)}
+                </span>
+              )}
+            </div>
+          );
+        }
+        const latest = finishedRecords
           .filter((r) => r.readAt != null)
           .sort((a, b) => (a.readAt! < b.readAt! ? 1 : -1))
           .at(0);
         return (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <Badge variant="default">
-              {records.length > 1 ? `${records.length}×` : "Ja"}
+              {finishedRecords.length > 1 ? `${finishedRecords.length}×` : "Ja"}
             </Badge>
             {latest && (
               <span className="text-muted-foreground text-xs">
