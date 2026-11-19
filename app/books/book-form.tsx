@@ -580,6 +580,7 @@ export function BookForm({ open, onClose, onSubmit, initial }: BookFormProps) {
               listsReady={authorsLoaded && publishersLoaded}
               hasCover={hasCover}
               onApply={applyLookup}
+              onScan={(isbn) => setValue("isbn", isbn, { shouldDirty: true })}
             />
 
             <div className="sm:col-span-2 space-y-1">

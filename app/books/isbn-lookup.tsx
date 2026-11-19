@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { ScanBarcode, Search } from "lucide-react";
 import {
   ApiError,
   authorsApi,
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { IsbnScanner } from "./isbn-scanner";
 
 // Aktuelle Formularwerte, gegen die die Vorschau vergleicht
 export interface IsbnLookupFormValues {
@@ -63,6 +64,8 @@ interface IsbnLookupProps {
   // Cover-Zeile nicht vorausgewählt.
   hasCover: boolean;
   onApply: (patch: IsbnApplyPatch) => void;
+  // Gescannte ISBN ins Formularfeld schreiben
+  onScan: (isbn: string) => void;
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -106,6 +109,7 @@ export function IsbnLookup({
   listsReady,
   hasCover,
   onApply,
+  onScan,
 }: IsbnLookupProps) {
   const [loading, setLoading] = useState(false);
   // Meldung und Vorschau gehören zu der ISBN, für die sie geholt wurden;
@@ -123,9 +127,24 @@ export function IsbnLookup({
     currentIsbn.current = normalized;
   }, [normalized]);
 
-  async function lookup() {
-    if (!valid || loading) return;
-    const requested = normalized;
+  // Scan-Button nur, wenn der Browser Kamerazugriff kennt (SSR-sicher im Effect)
+  const [canScan, setCanScan] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  useEffect(() => {
+    setCanScan(!!navigator.mediaDevices?.getUserMedia);
+  }, []);
+
+  function handleDetected(code: string) {
+    // currentIsbn sofort setzen: der Effekt dazu läuft erst nach dem Rendern
+    currentIsbn.current = code;
+    onScan(code);
+    // force: eine noch laufende Suche zu einer anderen ISBN darf den Scan nicht schlucken
+    lookup(code, true);
+  }
+
+  async function lookup(target: string = normalized, force = false) {
+    if (!isValidIsbn(target) || (loading && !force)) return;
+    const requested = normalizeIsbn(target);
     setLoading(true);
     setMessage(null);
     setResult(null);
@@ -158,11 +177,32 @@ export function IsbnLookup({
           <Label htmlFor="isbn">ISBN</Label>
           <Input id="isbn" {...isbnInput} placeholder="978-…" />
         </div>
-        <Button type="button" variant="outline" disabled={!valid || loading} onClick={lookup}>
+        {canScan && (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 sm:h-8"
+            onClick={() => setScanning(true)}
+          >
+            <ScanBarcode />
+            Scannen
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 sm:h-8"
+          disabled={!valid || loading}
+          onClick={() => lookup()}
+        >
           <Search />
           {loading ? "Suche…" : "Nachschlagen"}
         </Button>
       </div>
+
+      {canScan && (
+        <IsbnScanner open={scanning} onOpenChange={setScanning} onDetected={handleDetected} />
+      )}
 
       {(shownMessage ?? invalidHint) && (
         <p className="text-muted-foreground text-xs">{shownMessage ?? invalidHint}</p>
