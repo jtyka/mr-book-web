@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { Camera, ImagePlus, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { ImageResizeError, resizeImageToJpeg } from "@/lib/image-resize";
 import { BookCover } from "@/components/book-cover";
@@ -54,8 +54,15 @@ interface CoverFieldProps {
 
 export function CoverField({ currentUrl, value, onChange, notice, disabled }: CoverFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  // „Foto aufnehmen" nur bei grobem Zeiger (Touch); SSR-sicher im Effect
+  const [canCapture, setCanCapture] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCanCapture(window.matchMedia("(pointer: coarse)").matches);
+  }, []);
 
   // Object-URL der Vorschau freigeben, sobald sie ersetzt wird oder das Feld
   // verschwindet.
@@ -104,10 +111,24 @@ export function CoverField({ currentUrl, value, onChange, notice, disabled }: Co
         <BookCover url={shownUrl} size="lg" alt="Cover" />
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap gap-2">
+            {canCapture && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-11 sm:h-8"
+                disabled={busy || disabled}
+                onClick={() => cameraRef.current?.click()}
+              >
+                <Camera />
+                {busy ? "Verarbeite…" : "Foto aufnehmen"}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="h-11 sm:h-8"
               disabled={busy || disabled}
               onClick={() => inputRef.current?.click()}
             >
@@ -119,6 +140,7 @@ export function CoverField({ currentUrl, value, onChange, notice, disabled }: Co
                 type="button"
                 variant="outline"
                 size="sm"
+                className="h-11 sm:h-8"
                 disabled={busy || disabled}
                 onClick={handleRemove}
               >
@@ -127,11 +149,20 @@ export function CoverField({ currentUrl, value, onChange, notice, disabled }: Co
               </Button>
             )}
           </div>
-          {/* kein capture-Attribut: so bietet das Handy Kamera und Galerie an */}
+          {/* zwei Inputs: ohne capture zeigt z. B. Chrome auf Android nur vorhandene
+              Bilder; „Foto aufnehmen" öffnet über capture direkt die Kamera */}
           <input
             ref={inputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            hidden
+            onChange={handleFile}
+          />
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
             hidden
             onChange={handleFile}
           />
