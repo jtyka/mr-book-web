@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError, apiErrorText, authApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Library } from "lucide-react";
 
 const INPUT_CLASS =
@@ -206,9 +207,8 @@ function ResetInner() {
               <label htmlFor="new-password" className="text-sm font-medium">
                 Neues Passwort
               </label>
-              <input
+              <PasswordInput
                 id="new-password"
-                type="password"
                 required
                 minLength={12}
                 autoComplete="new-password"
@@ -228,9 +228,8 @@ function ResetInner() {
               >
                 Passwort bestätigen
               </label>
-              <input
+              <PasswordInput
                 id="new-password-confirm"
-                type="password"
                 required
                 autoComplete="new-password"
                 value={passwordConfirm}

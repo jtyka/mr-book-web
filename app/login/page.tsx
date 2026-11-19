@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Library } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -173,9 +174,8 @@ export default function LoginPage() {
               <label htmlFor="login-password" className="text-sm font-medium">
                 Passwort
               </label>
-              <input
+              <PasswordInput
                 id="login-password"
-                type="password"
                 required
                 autoComplete="current-password"
                 value={loginPassword}
@@ -304,9 +304,8 @@ export default function LoginPage() {
               <label htmlFor="reg-password" className="text-sm font-medium">
                 Passwort
               </label>
-              <input
+              <PasswordInput
                 id="reg-password"
-                type="password"
                 required
                 minLength={12}
                 autoComplete="new-password"
@@ -326,9 +325,8 @@ export default function LoginPage() {
               >
                 Passwort bestätigen
               </label>
-              <input
+              <PasswordInput
                 id="reg-password-confirm"
-                type="password"
                 required
                 autoComplete="new-password"
                 value={regPasswordConfirm}
